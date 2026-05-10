@@ -1,0 +1,101 @@
+name: Refresh Jira Board
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "1,16,31,46 * * * *"
+
+concurrency:
+  group: refresh-jira-board
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    name: Pull Jira and publish dashboard
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      MANUAL_REFRESH_ITERATIONS: 1
+      SCHEDULE_REFRESH_ITERATIONS: 3
+      REFRESH_INTERVAL_SECONDS: 300
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Pull Jira data and publish dashboard
+        id: refresh
+        env:
+          JIRA_FIX_VERSION: ${{ vars.JIRA_FIX_VERSION }}
+          BOARD_OWNER: ${{ github.repository_owner }}
+          BOARD_REPOSITORY_NAME: ${{ github.event.repository.name }}
+          BOARD_REPOSITORY_SLUG: ${{ github.repository }}
+          DASHBOARD_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          JIRA_CLOUD_ID: ${{ secrets.JIRA_CLOUD_ID }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_MCP_TOKEN: ${{ secrets.JIRA_MCP_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
+          QA_EMAIL_TO: ${{ secrets.QA_EMAIL_TO }}
+          QA_EMAIL_FROM: ${{ secrets.QA_EMAIL_FROM }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_SECURE: ${{ secrets.SMTP_SECURE }}
+          SMTP_REJECT_UNAUTHORIZED: ${{ secrets.SMTP_REJECT_UNAUTHORIZED }}
+          ASSIGNEE_DISPATCH_ENDPOINT: ${{ vars.ASSIGNEE_DISPATCH_ENDPOINT }}
+          TEST_CHECKLIST_COMMENT_ENDPOINT: ${{ vars.TEST_CHECKLIST_COMMENT_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          : "${JIRA_FIX_VERSION:?Set repository variable JIRA_FIX_VERSION, for example v3001.124.0}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            refresh_iterations="$SCHEDULE_REFRESH_ITERATIONS"
+          else
+            refresh_iterations="$MANUAL_REFRESH_ITERATIONS"
+          fi
+
+          for iteration in $(seq 1 "$refresh_iterations"); do
+            echo "Refresh iteration ${iteration}/${refresh_iterations}"
+            git pull --rebase origin "$GITHUB_REF_NAME"
+            node scripts/refresh-jira-board-action.cjs
+
+            if [ -z "$(git status --porcelain -- index.html assets/jira-media)" ]; then
+              echo "No dashboard or Jira media asset change to commit."
+            else
+              pulled_at="$(node - <<'NODE'
+          const fs = require("fs");
+          const html = fs.readFileSync("index.html", "utf8");
+          const start = '<script id="jira-data" type="application/json">';
+          const end = "</script>";
+          const startIndex = html.indexOf(start);
+          const endIndex = html.indexOf(end, startIndex);
+          const data = JSON.parse(html.slice(startIndex + start.length, endIndex));
+          console.log(data.pullDiff?.currentPulledAtDisplay || data.pulledAtDisplay || new Date().toISOString());
+          NODE
+              )"
+              git add index.html
+              if [ -d assets/jira-media ]; then
+                git add assets/jira-media
+              fi
+              git commit -m "Refresh Jira board data ${pulled_at}"
+              git push
+              node scripts/send-refresh-notifications.cjs || echo "::warning::Notification send failed; continuing refresh loop."
+            fi
+
+            if [ "$iteration" -lt "$refresh_iterations" ]; then
+              sleep "$REFRESH_INTERVAL_SECONDS"
+            fi
+          done

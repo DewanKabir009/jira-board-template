@@ -1,0 +1,46 @@
+name: Post Test Checklist Comment
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_key:
+        description: Jira issue key, for example CORE-14332
+        required: true
+        type: string
+      checklist_payload:
+        description: JSON payload from the dashboard checklist modal
+        required: true
+        type: string
+
+concurrency:
+  group: jira-test-checklist-comment
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  post:
+    name: Post Jira checklist comment
+    if: github.actor == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Post checklist comment
+        env:
+          JIRA_CLOUD_ID: ${{ secrets.JIRA_CLOUD_ID }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_MCP_TOKEN: ${{ secrets.JIRA_MCP_TOKEN }}
+          TRUSTED_GITHUB_ACTORS: ${{ vars.TRUSTED_GITHUB_ACTORS || github.repository_owner }}
+          ISSUE_KEY: ${{ inputs.issue_key }}
+          CHECKLIST_PAYLOAD: ${{ inputs.checklist_payload }}
+        run: node scripts/post-test-checklist-comment.cjs
