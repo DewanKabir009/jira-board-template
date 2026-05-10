@@ -4,7 +4,7 @@ const path = require("path");
 const workspace = __dirname;
 const version = process.argv[2] || process.env.JIRA_FIX_VERSION || "vNEXT.0";
 const siteUrl = process.env.JIRA_SITE_URL || "https://golfnow.atlassian.net";
-const dashboardVersion = "v1.10.4";
+const dashboardVersion = "v1.10.5";
 const boardOwner = process.env.BOARD_OWNER || process.env.GITHUB_REPOSITORY_OWNER || "DewanKabir009";
 const boardRepositoryName =
   process.env.BOARD_REPOSITORY_NAME ||
@@ -16,9 +16,9 @@ const repositorySlug =
 const dashboardUrl =
   process.env.DASHBOARD_URL ||
   `https://${boardOwner.toLowerCase()}.github.io/${boardRepositoryName}/`;
-const assigneeBridgePort = process.env.ASSIGNEE_BRIDGE_PORT || "3991";
+const defaultAssigneeDispatchEndpoint = "https://jira-board-assignee-bridge.dfkabir253.workers.dev/assign";
 const assigneeDispatchEndpoint =
-  process.env.ASSIGNEE_DISPATCH_ENDPOINT || `http://127.0.0.1:${assigneeBridgePort}/assign`;
+  process.env.ASSIGNEE_DISPATCH_ENDPOINT || defaultAssigneeDispatchEndpoint;
 const testChecklistCommentEndpoint =
   process.env.TEST_CHECKLIST_COMMENT_ENDPOINT ||
   assigneeDispatchEndpoint.replace(/\/assign$/, "/comment-checklist");
@@ -4756,7 +4756,7 @@ function renderHtml(data) {
             status.textContent = "Workflow started. Jira will refresh shortly.";
           })
           .catch(function (error) {
-            status.textContent = "Bridge offline. Open Actions to run it.";
+            status.textContent = "Hosted bridge unavailable. Sign in through Cloudflare Access or retry.";
             console.error(error);
           })
           .finally(function () {

@@ -168,6 +168,12 @@ Generated data that does not belong in this template:
 
 ## Version History
 
+### v1.10.5
+
+- Changed the default assignee bridge endpoint from local `127.0.0.1` to the hosted Cloudflare Worker.
+- Ensured newly generated boards use the Cloudflare bridge by default unless explicitly overridden.
+- Kept assignee and checklist actions off laptop-local resources for generated live boards.
+
 ### v1.10.4
 
 - Added shadcn-inspired muted background colors for each workflow status section.
