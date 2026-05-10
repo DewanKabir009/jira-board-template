@@ -3,5 +3,7 @@
   "repoNamePattern": "jira-board-{safeVersion}",
   "defaultSiteUrl": "https://golfnow.atlassian.net",
   "hostedBridgeAssignEndpoint": "https://jira-board-assignee-bridge.dfkabir253.workers.dev/assign",
-  "hostedBridgeChecklistEndpoint": "https://jira-board-assignee-bridge.dfkabir253.workers.dev/comment-checklist"
+  "hostedBridgeChecklistEndpoint": "https://jira-board-assignee-bridge.dfkabir253.workers.dev/comment-checklist",
+  "provisionerEndpoint": "https://jira-board-provisioner.dfkabir253.workers.dev/provision",
+  "secretProviderEndpoint": "https://jira-board-provisioner.dfkabir253.workers.dev/actions-secrets"
 }

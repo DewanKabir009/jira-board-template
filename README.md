@@ -30,11 +30,18 @@ Repository variables required on every generated board:
 - `TEST_CHECKLIST_COMMENT_ENDPOINT`: hosted bridge `/comment-checklist` endpoint
 - `TRUSTED_GITHUB_ACTORS`: optional comma-separated GitHub actors allowed to trigger Jira writes; defaults to the repo owner
 
-Repository secrets required on every generated board:
+Repository secrets required on every generated board when the Cloudflare secret provider is not configured:
 
 - `JIRA_MCP_TOKEN`
 - `JIRA_EMAIL`
 - `JIRA_CLOUD_ID`
+
+Preferred managed-secret setup:
+
+- Store shared secrets once in the `jira-board-provisioner` Cloudflare Worker.
+- The provisioner sets `SECRET_PROVIDER_ENDPOINT` and `SECRET_PROVIDER_AUDIENCE` on each new board repo.
+- GitHub Actions uses GitHub OIDC to prove which repo is calling, then loads the Jira/Slack/email secrets from Cloudflare for that run.
+- New board repos do not need copied Jira or Slack GitHub secrets when this is configured.
 
 Optional notification secrets:
 
@@ -57,6 +64,64 @@ Cloudflare Worker setup for Jira write actions:
 - Set `DEFAULT_REPOSITORY` only if the bridge should have a default board.
 - Set `BOARD_DISPATCH_TOKEN` as a Worker secret with GitHub Actions dispatch permission for the release-board repos.
 - If Cloudflare Access protects the Worker, configure `ALLOWED_USER_EMAILS`, `ACCESS_AUD`, `ACCESS_JWKS_URL`, and `ACCESS_ISSUER`.
+
+## Cloudflare Provisioner
+
+The `jira-board-provisioner` Worker is the central automation service for future boards. It can:
+
+- Create a new board repo from this template.
+- Set repo variables such as `JIRA_FIX_VERSION`, `DASHBOARD_URL`, bridge endpoints, and the managed secret-provider endpoint.
+- Enable GitHub Pages from `master` at `/`.
+- Dispatch the first refresh workflow.
+- Provide managed secrets to GitHub Actions through GitHub OIDC without storing those secrets in every board repo.
+
+Provisioner file:
+
+```text
+workers/board-provisioner-worker.js
+wrangler.provisioner.toml
+```
+
+Required provisioner secrets:
+
+```powershell
+npx -y wrangler secret put GITHUB_PROVISIONER_TOKEN -c wrangler.provisioner.toml
+npx -y wrangler secret put PROVISIONER_ADMIN_TOKEN -c wrangler.provisioner.toml
+npx -y wrangler secret put JIRA_CLOUD_ID -c wrangler.provisioner.toml
+npx -y wrangler secret put JIRA_EMAIL -c wrangler.provisioner.toml
+npx -y wrangler secret put JIRA_MCP_TOKEN -c wrangler.provisioner.toml
+```
+
+Optional notification secrets:
+
+```powershell
+npx -y wrangler secret put SLACK_BOT_TOKEN -c wrangler.provisioner.toml
+npx -y wrangler secret put SLACK_CHANNEL_ID -c wrangler.provisioner.toml
+npx -y wrangler secret put QA_EMAIL_TO -c wrangler.provisioner.toml
+npx -y wrangler secret put QA_EMAIL_FROM -c wrangler.provisioner.toml
+npx -y wrangler secret put SMTP_HOST -c wrangler.provisioner.toml
+npx -y wrangler secret put SMTP_PORT -c wrangler.provisioner.toml
+npx -y wrangler secret put SMTP_USERNAME -c wrangler.provisioner.toml
+npx -y wrangler secret put SMTP_PASSWORD -c wrangler.provisioner.toml
+```
+
+Provision a board:
+
+```powershell
+$body = @{ fixVersion = "v3001.124.0"; runInitialRefresh = $true } | ConvertTo-Json
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "https://jira-board-provisioner.dfkabir253.workers.dev/provision" `
+  -Headers @{ "X-Provisioner-Token" = "<PROVISIONER_ADMIN_TOKEN>" } `
+  -Body $body `
+  -ContentType "application/json"
+```
+
+Generated board URL pattern:
+
+```text
+https://dewankabir009.github.io/jira-board-v3001-124-0/
+```
 
 ## Local First Pull
 
@@ -102,6 +167,12 @@ Generated data that does not belong in this template:
 - Cloudflare-hosted bridge support
 
 ## Version History
+
+### v1.10.3
+
+- Added `jira-board-provisioner`, a Cloudflare Worker for creating release-board repos from this template.
+- Added Cloudflare-managed secret loading for GitHub Actions using GitHub OIDC.
+- Added `scripts/load-managed-secrets.cjs` so future boards can run without copied Jira/Slack repo secrets.
 
 ### v1.10.2
 

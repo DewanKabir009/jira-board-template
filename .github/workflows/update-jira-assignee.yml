@@ -23,6 +23,7 @@ concurrency:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   update:
@@ -40,6 +41,13 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Load managed secrets from Cloudflare
+        if: vars.SECRET_PROVIDER_ENDPOINT != ''
+        env:
+          SECRET_PROVIDER_ENDPOINT: ${{ vars.SECRET_PROVIDER_ENDPOINT }}
+          SECRET_PROVIDER_AUDIENCE: ${{ vars.SECRET_PROVIDER_AUDIENCE }}
+        run: node scripts/load-managed-secrets.cjs
+
       - name: Update Jira assignee
         id: assign
         env:
@@ -48,13 +56,18 @@ jobs:
           BOARD_REPOSITORY_NAME: ${{ github.event.repository.name }}
           BOARD_REPOSITORY_SLUG: ${{ github.repository }}
           DASHBOARD_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
-          JIRA_CLOUD_ID: ${{ secrets.JIRA_CLOUD_ID }}
-          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
-          JIRA_MCP_TOKEN: ${{ secrets.JIRA_MCP_TOKEN }}
+          REPO_SECRET_JIRA_CLOUD_ID: ${{ secrets.JIRA_CLOUD_ID }}
+          REPO_SECRET_JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          REPO_SECRET_JIRA_MCP_TOKEN: ${{ secrets.JIRA_MCP_TOKEN }}
           TRUSTED_GITHUB_ACTORS: ${{ vars.TRUSTED_GITHUB_ACTORS || github.repository_owner }}
           ISSUE_KEY: ${{ inputs.issue_key }}
           ASSIGNEE_DISPLAY_NAME: ${{ inputs.assignee_display_name }}
-        run: node scripts/update-jira-assignee.cjs
+        run: |
+          set -euo pipefail
+          export JIRA_CLOUD_ID="${JIRA_CLOUD_ID:-${REPO_SECRET_JIRA_CLOUD_ID:-}}"
+          export JIRA_EMAIL="${JIRA_EMAIL:-${REPO_SECRET_JIRA_EMAIL:-}}"
+          export JIRA_MCP_TOKEN="${JIRA_MCP_TOKEN:-${REPO_SECRET_JIRA_MCP_TOKEN:-}}"
+          node scripts/update-jira-assignee.cjs
 
       - name: Commit and push dashboard
         if: steps.assign.outputs.board_changed == 'true'
