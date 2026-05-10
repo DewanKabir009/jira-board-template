@@ -168,6 +168,12 @@ Generated data that does not belong in this template:
 
 ## Version History
 
+### v1.10.4
+
+- Added shadcn-inspired muted background colors for each workflow status section.
+- Matched section headers, count pills, borders, and card outlines to the section palette.
+- Kept the colors subtle so ticket cards remain readable and scannable.
+
 ### v1.10.3
 
 - Added `jira-board-provisioner`, a Cloudflare Worker for creating release-board repos from this template.
