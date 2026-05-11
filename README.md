@@ -168,6 +168,12 @@ Generated data that does not belong in this template:
 
 ## Version History
 
+### v1.10.6
+
+- Changed hosted bridge health failures caused by Cloudflare Access from `Offline` to `Cloudflare Login`.
+- Added an amber protected status style so generated boards distinguish an auth gate from an actual bridge outage.
+- Kept the Cloudflare Worker as the default assignee and checklist bridge endpoint.
+
 ### v1.10.5
 
 - Changed the default assignee bridge endpoint from local `127.0.0.1` to the hosted Cloudflare Worker.
