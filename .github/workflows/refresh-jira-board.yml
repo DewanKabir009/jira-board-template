@@ -16,6 +16,7 @@ permissions:
 jobs:
   refresh:
     name: Pull Jira and publish dashboard
+    if: vars.JIRA_FIX_VERSION != ''
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
