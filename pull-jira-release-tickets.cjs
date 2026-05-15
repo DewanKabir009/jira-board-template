@@ -2802,6 +2802,14 @@ function renderHtml(data) {
       gap: 10px 16px;
     }
 
+    .bridge-tools {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
     .bridge-status {
       display: inline-flex;
       align-items: center;
@@ -2813,6 +2821,30 @@ function renderHtml(data) {
       padding: 5px 10px;
       color: #41506a;
       white-space: nowrap;
+    }
+
+    .bridge-login-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      border: 1px solid #0c66e4;
+      border-radius: 8px;
+      background: #0c66e4;
+      padding: 6px 12px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      text-decoration: none;
+      white-space: nowrap;
+      box-shadow: 0 8px 18px rgba(12, 102, 228, .16);
+    }
+
+    .bridge-login-link:hover,
+    .bridge-login-link:focus-visible {
+      border-color: #0747a6;
+      background: #0747a6;
+      color: #fff;
+      outline: none;
     }
 
     .bridge-dot {
@@ -3003,9 +3035,12 @@ function renderHtml(data) {
       <div class="footer">
         <span id="source-line"></span>
         <span class="footer-links">
-          <span class="bridge-status" id="bridge-status" role="status" aria-live="polite">
-            <span class="bridge-dot" aria-hidden="true"></span>
-            <span><b>Assignee Bridge Status</b><small id="bridge-status-text">Checking</small></span>
+          <span class="bridge-tools">
+            <span class="bridge-status" id="bridge-status" role="status" aria-live="polite">
+              <span class="bridge-dot" aria-hidden="true"></span>
+              <span><b>Assignee Bridge Status</b><small id="bridge-status-text">Checking</small></span>
+            </span>
+            <a class="bridge-login-link" id="bridge-login-link" href="${escapeHtml(assigneeDispatchEndpoint.replace(/\/assign$/, "/status"))}" target="_blank" rel="noopener" title="Open Cloudflare Access login to re-enable assign and checklist comments">Login / re-enable bridge</a>
           </span>
           <a href="${escapeHtml(readmeUrl)}">Dashboard ${escapeHtml(dashboardVersion)} notes</a>
           <a href="${escapeHtml(jiraFilterUrl)}">Open Jira filter</a>
@@ -3153,6 +3188,10 @@ function renderHtml(data) {
         return assigneeDispatchEndpoint.replace(/\\/assign$/, "/status");
       }
 
+      function getBridgeLoginUrl() {
+        return getAssigneeStatusEndpoint();
+      }
+
       function formatEasternTimestamp(date) {
         return new Intl.DateTimeFormat("en-US", {
           timeZone: "America/New_York",
@@ -3257,6 +3296,13 @@ function renderHtml(data) {
         return /jira-board-assignee-bridge\\.dfkabir253\\.workers\\.dev/i.test(assigneeDispatchEndpoint);
       }
 
+      function configureBridgeLoginLink() {
+        var loginLink = document.getElementById("bridge-login-link");
+        if (loginLink) {
+          loginLink.href = getBridgeLoginUrl();
+        }
+      }
+
       function checkBridgeStatus() {
         setBridgeStatus("", "Checking");
         fetch(getAssigneeStatusEndpoint(), { method: "GET", cache: "no-store", credentials: "include" })
@@ -3275,7 +3321,7 @@ function renderHtml(data) {
           })
           .catch(function () {
             if (isHostedBridgeEndpoint()) {
-              setBridgeStatus("protected", "Cloudflare Login");
+              setBridgeStatus("protected", "Login required");
               return;
             }
             setBridgeStatus("offline", "Offline");
@@ -4149,7 +4195,10 @@ function renderHtml(data) {
             status.textContent = "Jira comment request accepted.";
           })
           .catch(function (error) {
-            status.textContent = "Bridge could not post the Jira comment.";
+            status.textContent = "Bridge could not post the Jira comment. Use Login / re-enable bridge, then retry.";
+            if (isHostedBridgeEndpoint()) {
+              setBridgeStatus("protected", "Login required");
+            }
             console.error(error);
           })
           .finally(function () {
@@ -4751,6 +4800,7 @@ function renderHtml(data) {
         fetch(assigneeDispatchEndpoint, {
           method: "POST",
           headers: { "Content-Type": "text/plain;charset=UTF-8" },
+          credentials: "include",
           body: JSON.stringify({
             issueKey: issueKey,
             assigneeDisplayName: requestedAssignee,
@@ -4774,7 +4824,10 @@ function renderHtml(data) {
             status.textContent = "Workflow started. Jira will refresh shortly.";
           })
           .catch(function (error) {
-            status.textContent = "Hosted bridge unavailable. Sign in through Cloudflare Access or retry.";
+            status.textContent = "Hosted bridge unavailable. Use Login / re-enable bridge, then retry.";
+            if (isHostedBridgeEndpoint()) {
+              setBridgeStatus("protected", "Login required");
+            }
             console.error(error);
           })
           .finally(function () {
@@ -4996,6 +5049,7 @@ function renderHtml(data) {
       });
 
       renderAll();
+      configureBridgeLoginLink();
       checkBridgeStatus();
       window.setTimeout(checkForFreshDeployment, 5000);
       window.setInterval(renderNextRefresh, 30000);
