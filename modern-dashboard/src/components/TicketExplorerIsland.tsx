@@ -6,12 +6,25 @@ import {
   type SortingState,
   useReactTable
 } from "@tanstack/react-table";
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 
 type PullChange = string | {
   key?: string;
   issueKey?: string;
   issue?: { key?: string };
+  before?: string;
+  after?: string;
+};
+
+type PullDiffEntry = {
+  currentPulledAt?: string;
+  currentPulledAtDisplay?: string;
+  previousPulledAtDisplay?: string;
+  isBaseline?: boolean;
+  added?: PullChange[];
+  removed?: PullChange[];
+  updated?: PullChange[];
+  statusChanges?: PullChange[];
 };
 
 type Issue = {
@@ -56,12 +69,8 @@ type DashboardData = {
   dataArtifact?: { fileName?: string };
   total?: number;
   pulledAtDisplay?: string;
-  pullDiff?: {
-    currentPulledAtDisplay?: string;
-    added?: PullChange[];
-    updated?: PullChange[];
-    statusChanges?: PullChange[];
-  };
+  pullDiff?: PullDiffEntry;
+  pullHistory?: PullDiffEntry[];
   issues?: Issue[];
 };
 
@@ -105,6 +114,36 @@ type ChecklistWorkspaceState = {
   status: WorkspaceStatus;
   message: string;
   submittedAt: string;
+};
+
+type AnalyticsTone = "blue" | "green" | "amber" | "rose";
+
+type DistributionRow = {
+  label: string;
+  value: number;
+  share: number;
+  tone: AnalyticsTone;
+};
+
+type MovementRow = {
+  label: string;
+  added: number;
+  updated: number;
+  moved: number;
+  removed: number;
+  total: number;
+};
+
+type ReleaseAnalytics = {
+  issueTotal: number;
+  mainTotal: number;
+  subtaskTotal: number;
+  changedTotal: number;
+  assignees: DistributionRow[];
+  priorities: DistributionRow[];
+  components: DistributionRow[];
+  movements: MovementRow[];
+  insights: string[];
 };
 
 const PAGE_SIZE_OPTIONS = [15, 25, 50];
@@ -153,6 +192,7 @@ export default function TicketExplorerIsland({ dataUrl }: { dataUrl: string }) {
   const issues = useMemo(() => data?.issues ?? [], [data]);
   const changeSets = useMemo(() => createChangeSets(data), [data]);
   const options = useMemo(() => createFilterOptions(issues), [issues]);
+  const analytics = useMemo(() => buildReleaseAnalytics(data, issues, changeSets), [data, issues, changeSets]);
 
   const filteredIssues = useMemo(() => {
     return issues.filter((issue) => matchesFilters(issue, filters, changeSets, activePreset));
@@ -291,6 +331,8 @@ export default function TicketExplorerIsland({ dataUrl }: { dataUrl: string }) {
         </dl>
       </section>
 
+      <ReleaseAnalyticsBand analytics={analytics} />
+
       <section className="explorer-panel" aria-labelledby="explorer-heading">
         <div className="explorer-toolbar">
           <div>
@@ -398,6 +440,152 @@ export default function TicketExplorerIsland({ dataUrl }: { dataUrl: string }) {
         </div>
       </section>
     </main>
+  );
+}
+
+function ReleaseAnalyticsBand({ analytics }: { analytics: ReleaseAnalytics }) {
+  return (
+    <section className="analytics-band" aria-labelledby="analytics-heading">
+      <div className="analytics-heading">
+        <div>
+          <p className="eyebrow">Release analytics</p>
+          <h2 id="analytics-heading">Triage signals</h2>
+        </div>
+        <dl className="analytics-totals" aria-label="Release analytics totals">
+          <div><dt>Main</dt><dd>{analytics.mainTotal}</dd></div>
+          <div><dt>Subtasks</dt><dd>{analytics.subtaskTotal}</dd></div>
+          <div><dt>Changed</dt><dd>{analytics.changedTotal}</dd></div>
+        </dl>
+      </div>
+
+      <div className="analytics-insights" aria-label="Release analytics summary">
+        {analytics.insights.map((insight) => <p key={insight}>{insight}</p>)}
+      </div>
+
+      <div className="analytics-grid">
+        <DistributionChart
+          title="Assignee load"
+          description="Current ticket ownership by assignee."
+          rows={analytics.assignees}
+        />
+        <MovementChart rows={analytics.movements} />
+        <DistributionChart
+          title="Priority mix"
+          description="Current release risk split by Jira priority."
+          rows={analytics.priorities}
+        />
+        <DistributionChart
+          title="Component concentration"
+          description="Components with the most current release tickets."
+          rows={analytics.components}
+        />
+      </div>
+    </section>
+  );
+}
+
+function DistributionChart({ title, description, rows }: { title: string; description: string; rows: DistributionRow[] }) {
+  return (
+    <article className="analytics-chart">
+      <div className="chart-heading">
+        <h3>{title}</h3>
+        <p>{description}</p>
+      </div>
+      <div className="bar-list" aria-hidden="true">
+        {rows.length ? rows.map((row) => (
+          <div className="bar-row" key={row.label}>
+            <span>{row.label}</span>
+            <div className="bar-track">
+              <span className={`bar-fill ${row.tone}`} style={{ "--bar-width": `${row.value ? Math.max(4, row.share) : 0}%` } as CSSProperties} />
+            </div>
+            <strong>{row.value}</strong>
+          </div>
+        )) : <p className="analytics-empty">No data available.</p>}
+      </div>
+      <table className="analytics-table">
+        <caption>{title}</caption>
+        <thead>
+          <tr>
+            <th scope="col">Label</th>
+            <th scope="col">Tickets</th>
+            <th scope="col">Share</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length ? rows.map((row) => (
+            <tr key={row.label}>
+              <td>{row.label}</td>
+              <td>{row.value}</td>
+              <td>{Math.round(row.share)}%</td>
+            </tr>
+          )) : (
+            <tr>
+              <td colSpan={3}>No data available.</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </article>
+  );
+}
+
+function MovementChart({ rows }: { rows: MovementRow[] }) {
+  const maxTotal = Math.max(1, ...rows.map((row) => row.total));
+
+  return (
+    <article className="analytics-chart movement-chart">
+      <div className="chart-heading">
+        <h3>Status movement history</h3>
+        <p>Recent pull-diff activity from the retained dashboard history.</p>
+      </div>
+      <div className="movement-legend" aria-hidden="true">
+        <span className="added">Added</span>
+        <span className="updated">Updated</span>
+        <span className="moved">Status moved</span>
+        <span className="removed">Removed</span>
+      </div>
+      <div className="movement-list" aria-hidden="true">
+        {rows.length ? rows.map((row) => (
+          <div className="movement-row" key={row.label}>
+            <span>{row.label}</span>
+            <div className="movement-track">
+              <span className="movement-segment added" style={{ "--segment-width": `${(row.added / maxTotal) * 100}%` } as CSSProperties} />
+              <span className="movement-segment updated" style={{ "--segment-width": `${(row.updated / maxTotal) * 100}%` } as CSSProperties} />
+              <span className="movement-segment moved" style={{ "--segment-width": `${(row.moved / maxTotal) * 100}%` } as CSSProperties} />
+              <span className="movement-segment removed" style={{ "--segment-width": `${(row.removed / maxTotal) * 100}%` } as CSSProperties} />
+            </div>
+            <strong>{row.total}</strong>
+          </div>
+        )) : <p className="analytics-empty">No pull history yet.</p>}
+      </div>
+      <table className="analytics-table">
+        <caption>Status movement history</caption>
+        <thead>
+          <tr>
+            <th scope="col">Pull</th>
+            <th scope="col">Added</th>
+            <th scope="col">Updated</th>
+            <th scope="col">Moved</th>
+            <th scope="col">Removed</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length ? rows.map((row) => (
+            <tr key={row.label}>
+              <td>{row.label}</td>
+              <td>{row.added}</td>
+              <td>{row.updated}</td>
+              <td>{row.moved}</td>
+              <td>{row.removed}</td>
+            </tr>
+          )) : (
+            <tr>
+              <td colSpan={5}>No pull history yet.</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </article>
   );
 }
 
@@ -835,6 +1023,97 @@ function changeLabels(key: string, changeSets: ChangeSets) {
 function uniqueValues(values: Array<string | undefined>) {
   return [...new Set(values.filter(Boolean) as string[])]
     .sort((left, right) => left.localeCompare(right));
+}
+
+function buildReleaseAnalytics(data: DashboardData | null, issues: Issue[], changeSets: ChangeSets): ReleaseAnalytics {
+  const mainTotal = issues.filter((issue) => !issue.isSubtask).length;
+  const subtaskTotal = issues.length - mainTotal;
+  const pullHistory = (Array.isArray(data?.pullHistory) && data?.pullHistory.length ? data?.pullHistory : data?.pullDiff ? [data.pullDiff] : [])
+    .filter(Boolean) as PullDiffEntry[];
+
+  const assignees = toDistributionRows(countBy(issues, (issue) => issue.assignee || "Unassigned"), issues.length, 6, "blue");
+  const priorities = toDistributionRows(countBy(issues, (issue) => issue.priority || "None"), issues.length, 6, "amber");
+  const components = toDistributionRows(countBy(issues.flatMap((issue) => issue.components?.length ? issue.components : ["No component"]), (component) => component), issues.length, 7, "green");
+  const movements = pullHistory.slice(0, 8).reverse().map((entry) => {
+    const added = entry.added?.length || 0;
+    const updated = entry.updated?.length || 0;
+    const moved = entry.statusChanges?.length || 0;
+    const removed = entry.removed?.length || 0;
+    return {
+      label: movementLabel(entry),
+      added,
+      updated,
+      moved,
+      removed,
+      total: added + updated + moved + removed
+    };
+  });
+
+  return {
+    issueTotal: issues.length,
+    mainTotal,
+    subtaskTotal,
+    changedTotal: changeSets.any.size,
+    assignees,
+    priorities,
+    components,
+    movements,
+    insights: [
+      insightForTop("Ownership", assignees, "has the highest current load"),
+      insightForTop("Priority", priorities, "is the largest priority group"),
+      insightForTop("Component", components, "has the most release concentration"),
+      latestMovementInsight(pullHistory)
+    ]
+  };
+}
+
+function countBy<T>(items: T[], selector: (item: T) => string) {
+  return items.reduce((counts, item) => {
+    const label = selector(item) || "None";
+    counts.set(label, (counts.get(label) || 0) + 1);
+    return counts;
+  }, new Map<string, number>());
+}
+
+function toDistributionRows(counts: Map<string, number>, total: number, limit: number, tone: AnalyticsTone): DistributionRow[] {
+  const rows = [...counts.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, limit);
+
+  return rows.map(([label, value]) => ({
+    label,
+    value,
+    share: total ? (value / total) * 100 : 0,
+    tone
+  }));
+}
+
+function insightForTop(label: string, rows: DistributionRow[], suffix: string) {
+  const top = rows[0];
+  if (!top) {
+    return `${label}: no data available yet.`;
+  }
+
+  return `${label}: ${top.label} ${suffix} (${top.value}).`;
+}
+
+function latestMovementInsight(history: PullDiffEntry[]) {
+  const latest = history[0];
+  if (!latest) {
+    return "Movement: pull history is not available yet.";
+  }
+
+  const total = (latest.added?.length || 0) + (latest.updated?.length || 0) + (latest.statusChanges?.length || 0) + (latest.removed?.length || 0);
+  if (latest.isBaseline) {
+    return "Movement: latest pull is the baseline snapshot.";
+  }
+
+  return total ? `Movement: latest pull recorded ${total} ticket changes.` : "Movement: latest pull recorded no ticket changes.";
+}
+
+function movementLabel(entry: PullDiffEntry) {
+  const label = entry.currentPulledAtDisplay || entry.currentPulledAt || "Pull";
+  return label.replace(/,\s*\d{4}/, "");
 }
 
 function formatComponents(components?: string[]) {

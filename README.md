@@ -188,8 +188,15 @@ Generated data that does not belong in this template:
 - Astro static shell scaffold for the modern dashboard migration
 - React and TanStack Table ticket explorer inside the Astro preview
 - Checklist workspace with editable QA cases, evidence, concerns, preview, and Cloudflare bridge submission
+- Release analytics band with assignee load, pull movement history, priority mix, and component concentration
 
 ## Version History
+
+### v1.10.10
+
+- Added the SPEC-07 release analytics band to the Astro preview.
+- Added tokenized semantic charts for assignee load, status movement history, priority mix, and component concentration.
+- Kept every analytics chart backed by a readable HTML table fallback.
 
 ### v1.10.9
 
