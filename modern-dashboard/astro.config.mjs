@@ -1,4 +1,5 @@
 import { defineConfig } from "astro/config";
+import react from "@astrojs/react";
 
 function normalizeBase(value) {
   if (!value || value === "/") {
@@ -17,6 +18,7 @@ const defaultSite = `https://${ownerName.toLowerCase()}.github.io/${repositoryNa
 
 export default defineConfig({
   output: "static",
+  integrations: [react()],
   site: process.env.ASTRO_SITE || process.env.DASHBOARD_URL || defaultSite,
   base: normalizeBase(process.env.ASTRO_BASE || "/"),
   build: {

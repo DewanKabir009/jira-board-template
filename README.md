@@ -186,8 +186,15 @@ Generated data that does not belong in this template:
 - Email notification hook for future SMTP or email-service wiring
 - Cloudflare-hosted bridge support
 - Astro static shell scaffold for the modern dashboard migration
+- React and TanStack Table ticket explorer inside the Astro preview
 
 ## Version History
+
+### v1.10.8
+
+- Added the SPEC-05 ticket explorer island to the Astro preview.
+- Added dense table scanning with sorting, pagination, filters, saved presets, and selected-ticket details.
+- Kept Jira links and current-board action links available from the preview rows and detail panel.
 
 ### v1.10.7
 

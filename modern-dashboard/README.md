@@ -32,6 +32,12 @@ npm run build
 
 The output in `dist/` is static and can be uploaded to GitHub Pages when the migration is ready to publish a `/modern/` preview.
 
+## Ticket Explorer Island
+
+SPEC-05 adds a React island powered by TanStack Table. The island loads `dashboard-data.json`, then provides search, status, assignee, priority, component, parent, and changed-since-last-pull filters. It also includes saved presets for QA testing, code review, status moves, and unassigned work.
+
+Rows link directly to Jira, while the detail panel keeps a current-board action link available so assignee and checklist workflows can stay on the proven generated dashboard until parity is complete.
+
 ## Migration Rule
 
 Do not replace the current generated board until the Astro shell has parity for ticket scanning, filters, Jira links, assignee writes, checklist comments, media, and release-board navigation.

@@ -55,3 +55,5 @@ The generated board remains the fallback until parity is proven across:
 - Checklist comment posting.
 - Board directory navigation.
 - GitHub Pages deployment behavior.
+
+SPEC-05 now adds the first React island inside this shell for dense ticket exploration.

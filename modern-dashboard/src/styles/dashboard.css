@@ -180,7 +180,10 @@ h3 {
 }
 
 .filter-control input,
-.filter-control select {
+.filter-control select,
+.explorer-filters input,
+.explorer-filters select,
+.table-summary select {
   width: 100%;
   min-height: 42px;
   border: 1px solid var(--line-strong);
@@ -190,6 +193,334 @@ h3 {
   font: inherit;
   font-size: 0.95rem;
   padding: 0 12px;
+}
+
+.modern-explorer-shell {
+  max-width: 1600px;
+}
+
+.explorer-panel,
+.ticket-detail-panel,
+.table-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.explorer-panel {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.explorer-toolbar,
+.table-summary,
+.pagination-bar,
+.detail-heading,
+.detail-actions,
+.preset-group {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.explorer-toolbar,
+.table-summary,
+.pagination-bar {
+  justify-content: space-between;
+}
+
+.preset-group {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.preset-button,
+.pagination-bar button,
+.row-actions button,
+.row-actions a,
+.column-sort {
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.preset-button {
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+.preset-button.active {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.explorer-filters {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.6fr) repeat(6, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.explorer-filters label,
+.table-summary label {
+  display: grid;
+  gap: 7px;
+}
+
+.explorer-filters span,
+.table-summary label span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.load-error {
+  border: 1px solid var(--rose);
+  border-radius: 8px;
+  background: var(--rose-soft);
+  color: var(--rose);
+  padding: 12px;
+  font-weight: 800;
+}
+
+.explorer-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.36fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.table-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.table-summary,
+.pagination-bar {
+  padding: 12px 14px;
+}
+
+.table-summary {
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.table-summary label {
+  grid-template-columns: auto 90px;
+  align-items: center;
+}
+
+.ticket-table-wrap {
+  overflow: auto;
+}
+
+.ticket-table {
+  width: 100%;
+  min-width: 1060px;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.ticket-table th,
+.ticket-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.ticket-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-muted);
+}
+
+.ticket-table tr {
+  cursor: pointer;
+}
+
+.ticket-table tbody tr:hover,
+.ticket-table tbody tr.selected-row {
+  background: var(--blue-soft);
+}
+
+.column-sort {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 30px;
+  border-color: transparent;
+  background: transparent;
+  padding: 0;
+}
+
+.column-sort:disabled {
+  cursor: default;
+}
+
+.column-sort span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.ticket-cell {
+  display: grid;
+  gap: 3px;
+}
+
+.ticket-cell span,
+.muted-cell,
+.component-text {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.table-ticket-key {
+  color: var(--blue);
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.summary-button {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  line-height: 1.35;
+  padding: 0;
+  text-align: left;
+}
+
+.status-pill,
+.priority-pill,
+.change-tags span {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 850;
+  line-height: 1.1;
+  padding: 5px 8px;
+}
+
+.status-pill {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.priority-pill {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.row-actions a,
+.row-actions button {
+  min-height: 30px;
+  padding: 0 9px;
+}
+
+.pagination-bar {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.pagination-bar button {
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+.pagination-bar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.ticket-detail-panel {
+  display: grid;
+  gap: 14px;
+  min-height: 420px;
+  padding: 18px;
+  position: sticky;
+  top: 16px;
+}
+
+.detail-heading {
+  justify-content: space-between;
+}
+
+.detail-heading a {
+  color: var(--blue);
+  font-size: 1.1rem;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.change-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.change-tags span {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.detail-grid div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 10px;
+}
+
+.detail-grid dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.detail-grid dd {
+  margin-top: 6px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.detail-description {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.detail-actions {
+  flex-wrap: wrap;
 }
 
 .ticket-panel {
@@ -309,8 +640,17 @@ h3 {
 
 @media (max-width: 1100px) {
   .board-hero,
-  .filter-panel {
+  .filter-panel,
+  .explorer-body {
     grid-template-columns: 1fr;
+  }
+
+  .explorer-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ticket-detail-panel {
+    position: static;
   }
 
   .status-lanes,
@@ -331,7 +671,8 @@ h3 {
 
   .metric-grid,
   .status-lanes,
-  .ticket-list {
+  .ticket-list,
+  .explorer-filters {
     grid-template-columns: 1fr;
   }
 

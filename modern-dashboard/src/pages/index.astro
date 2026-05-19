@@ -1,7 +1,5 @@
 ---
-import BoardMeta from "../components/BoardMeta.astro";
-import FilterBar from "../components/FilterBar.astro";
-import TicketPreviewList from "../components/TicketPreviewList.astro";
+import TicketExplorerIsland from "../components/TicketExplorerIsland";
 import DashboardLayout from "../layouts/DashboardLayout.astro";
 import "../styles/dashboard.css";
 
@@ -9,12 +7,5 @@ const dataUrl = import.meta.env.PUBLIC_DASHBOARD_DATA_URL || "../dashboard-data.
 ---
 
 <DashboardLayout title="Modern Jira Dashboard" dataUrl={dataUrl}>
-  <main class="dashboard-shell" data-dashboard-shell data-data-url={dataUrl}>
-    <BoardMeta />
-    <FilterBar />
-    <TicketPreviewList />
-  </main>
-  <script>
-    import "../scripts/dashboard-shell.js";
-  </script>
+  <TicketExplorerIsland client:load dataUrl={dataUrl} />
 </DashboardLayout>
