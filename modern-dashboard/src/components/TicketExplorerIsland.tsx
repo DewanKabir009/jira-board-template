@@ -68,6 +68,7 @@ type DashboardData = {
   schemaVersion?: string;
   dataArtifact?: { fileName?: string };
   total?: number;
+  pulledAt?: string;
   pulledAtDisplay?: string;
   pullDiff?: PullDiffEntry;
   pullHistory?: PullDiffEntry[];
@@ -146,6 +147,27 @@ type ReleaseAnalytics = {
   insights: string[];
 };
 
+type HealthTone = "good" | "attention" | "warning" | "danger" | "neutral";
+
+type HealthLink = {
+  label: string;
+  href: string;
+};
+
+type OperationsHealthItem = {
+  title: string;
+  status: string;
+  detail: string;
+  tone: HealthTone;
+  links: HealthLink[];
+};
+
+type OperationsHealth = {
+  summary: string;
+  summaryTone: HealthTone;
+  items: OperationsHealthItem[];
+};
+
 const PAGE_SIZE_OPTIONS = [15, 25, 50];
 
 const EMPTY_FILTERS: Filters = {
@@ -192,6 +214,7 @@ export default function TicketExplorerIsland({ dataUrl }: { dataUrl: string }) {
   const issues = useMemo(() => data?.issues ?? [], [data]);
   const changeSets = useMemo(() => createChangeSets(data), [data]);
   const options = useMemo(() => createFilterOptions(issues), [issues]);
+  const operationsHealth = useMemo(() => buildOperationsHealth(data, loadError), [data, loadError]);
   const analytics = useMemo(() => buildReleaseAnalytics(data, issues, changeSets), [data, issues, changeSets]);
 
   const filteredIssues = useMemo(() => {
@@ -331,6 +354,8 @@ export default function TicketExplorerIsland({ dataUrl }: { dataUrl: string }) {
         </dl>
       </section>
 
+      <OperationsHealthCenter health={operationsHealth} />
+
       <ReleaseAnalyticsBand analytics={analytics} />
 
       <section className="explorer-panel" aria-labelledby="explorer-heading">
@@ -440,6 +465,44 @@ export default function TicketExplorerIsland({ dataUrl }: { dataUrl: string }) {
         </div>
       </section>
     </main>
+  );
+}
+
+function OperationsHealthCenter({ health }: { health: OperationsHealth }) {
+  return (
+    <section className="operations-health" aria-labelledby="operations-heading">
+      <div className="operations-heading">
+        <div>
+          <p className="eyebrow">Operations health</p>
+          <h2 id="operations-heading">Separate system status</h2>
+        </div>
+        <span className={`ops-summary ${health.summaryTone}`}>{health.summary}</span>
+      </div>
+
+      <div className="ops-grid">
+        {health.items.map((item) => (
+          <article className={`ops-card ${item.tone}`} key={item.title}>
+            <div className="ops-card-head">
+              <span className={`health-dot ${item.tone}`} aria-hidden="true" />
+              <span>{item.status}</span>
+            </div>
+            <h3>{item.title}</h3>
+            <p>{item.detail}</p>
+            {item.links.length ? (
+              <div className="ops-links">
+                {item.links.map((link) => (
+                  <a href={link.href} target="_blank" rel="noreferrer" key={`${item.title}-${link.label}`}>{link.label}</a>
+                ))}
+              </div>
+            ) : null}
+          </article>
+        ))}
+      </div>
+
+      <p className="ops-footnote">
+        Failed GitHub Action emails can be historical. Compare the latest pull, Pages preview, and workflow history before treating Jira writes or data refresh as one outage.
+      </p>
+    </section>
   );
 }
 
@@ -1023,6 +1086,155 @@ function changeLabels(key: string, changeSets: ChangeSets) {
 function uniqueValues(values: Array<string | undefined>) {
   return [...new Set(values.filter(Boolean) as string[])]
     .sort((left, right) => left.localeCompare(right));
+}
+
+function buildOperationsHealth(data: DashboardData | null, loadError: string): OperationsHealth {
+  const repo = data?.repositorySlug || "";
+  const bridge = bridgeHealth(data);
+  const dataStatus: OperationsHealthItem = loadError ? {
+    title: "Jira data pull",
+    status: "Data blocked",
+    detail: loadError,
+    tone: "danger",
+    links: data?.dataArtifact?.fileName ? [{ label: "Data artifact", href: data.dataArtifact.fileName }] : []
+  } : {
+    title: "Jira data pull",
+    status: data ? "Loaded" : "Loading",
+    detail: data
+      ? `Latest Jira snapshot: ${latestPullLabel(data)}. This is independent from assign and comment writes.`
+      : "Waiting for dashboard-data.json to load.",
+    tone: data ? "good" : "neutral",
+    links: data?.dataArtifact?.fileName ? [{ label: "Data artifact", href: data.dataArtifact.fileName }] : []
+  };
+
+  const pagesStatus: OperationsHealthItem = {
+    title: "GitHub Pages preview",
+    status: data ? "Published" : "Waiting",
+    detail: data
+      ? `This modern preview loaded from the published Pages bundle for ${data.version || "this board"}.`
+      : "The preview shell is available while the data artifact is loading.",
+    tone: data ? "good" : "neutral",
+    links: [
+      ...(data?.dashboardUrl ? [{ label: "Live board", href: data.dashboardUrl }] : []),
+      ...(repo ? [{ label: "Pages deploys", href: `https://github.com/${repo}/deployments` }] : [])
+    ]
+  };
+
+  const bridgeStatus: OperationsHealthItem = {
+    title: "Jira write bridge",
+    status: bridge.status,
+    detail: bridge.detail,
+    tone: bridge.tone,
+    links: [
+      ...(bridge.statusUrl ? [{ label: bridge.linkLabel, href: bridge.statusUrl }] : []),
+      ...(repo ? [{ label: "Assign workflow", href: workflowUrl(repo, "update-jira-assignee.yml") }] : [])
+    ]
+  };
+
+  const actionsStatus: OperationsHealthItem = {
+    title: "Workflow runs",
+    status: repo ? "Review live runs" : "Repository unknown",
+    detail: repo
+      ? "Refreshes, assignee updates, and dashboard push notifications each have separate workflow histories."
+      : "Repository metadata is not available in the data artifact.",
+    tone: repo ? "attention" : "neutral",
+    links: repo ? [
+      { label: "Refresh data", href: workflowUrl(repo, "refresh-jira-board.yml") },
+      { label: "All Actions", href: `https://github.com/${repo}/actions` }
+    ] : []
+  };
+
+  const slackStatus: OperationsHealthItem = {
+    title: "Slack notifications",
+    status: repo ? "Workflow hook" : "Not inspected",
+    detail: repo
+      ? "Ticket refresh and dashboard push notifications are workflow-driven, so delivery health should be checked separately from bridge auth."
+      : "Slack notification status depends on workflow configuration.",
+    tone: repo ? "attention" : "neutral",
+    links: repo ? [{ label: "Notify workflow", href: workflowUrl(repo, "notify-dashboard-push.yml") }] : []
+  };
+
+  const hasDanger = [dataStatus, pagesStatus, bridgeStatus, actionsStatus, slackStatus].some((item) => item.tone === "danger");
+  const hasAttention = [dataStatus, pagesStatus, bridgeStatus, actionsStatus, slackStatus].some((item) => item.tone === "attention" || item.tone === "warning");
+
+  return {
+    summary: hasDanger ? "Needs attention" : hasAttention ? "Check linked systems" : "Core paths visible",
+    summaryTone: hasDanger ? "danger" : hasAttention ? "attention" : "good",
+    items: [dataStatus, pagesStatus, bridgeStatus, actionsStatus, slackStatus]
+  };
+}
+
+function bridgeHealth(data: DashboardData | null): { status: string; detail: string; tone: HealthTone; statusUrl: string; linkLabel: string } {
+  const endpoint = data?.assigneeDispatchEndpoint || "";
+
+  if (!data) {
+    return {
+      status: "Waiting",
+      detail: "Bridge configuration will appear after the data artifact loads.",
+      tone: "neutral",
+      statusUrl: "",
+      linkLabel: "Bridge status"
+    };
+  }
+
+  if (!endpoint) {
+    return {
+      status: "Not configured",
+      detail: "No assignee dispatch endpoint is present in dashboard-data.json.",
+      tone: "danger",
+      statusUrl: "",
+      linkLabel: "Bridge status"
+    };
+  }
+
+  const statusUrl = bridgeStatusUrl(endpoint);
+  if (isLocalBridgeEndpoint(endpoint)) {
+    return {
+      status: "Local endpoint",
+      detail: "This board points at localhost. Live GitHub Pages boards must use the hosted Cloudflare bridge, not a laptop-local bridge.",
+      tone: "danger",
+      statusUrl,
+      linkLabel: "Local status"
+    };
+  }
+
+  if (isHostedBridgeEndpoint(endpoint)) {
+    return {
+      status: "Cloudflare Login",
+      detail: "Jira assign and checklist comments route through the hosted Worker. Open the Access login/status link if writes need to be re-enabled.",
+      tone: "attention",
+      statusUrl,
+      linkLabel: "Re-enable bridge"
+    };
+  }
+
+  return {
+    status: "External bridge",
+    detail: "A non-local dispatch endpoint is configured. Check its status separately from Jira data refresh.",
+    tone: "attention",
+    statusUrl,
+    linkLabel: "Bridge status"
+  };
+}
+
+function latestPullLabel(data: DashboardData) {
+  return data.pullDiff?.currentPulledAtDisplay || data.pulledAtDisplay || data.pulledAt || "pending";
+}
+
+function workflowUrl(repositorySlug: string, workflowName: string) {
+  return `https://github.com/${repositorySlug}/actions/workflows/${workflowName}`;
+}
+
+function bridgeStatusUrl(endpoint: string) {
+  return endpoint.replace(/\/assign$/, "/status").replace(/\/comment-checklist$/, "/status");
+}
+
+function isLocalBridgeEndpoint(endpoint: string) {
+  return /(^|\/\/)(localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i.test(endpoint);
+}
+
+function isHostedBridgeEndpoint(endpoint: string) {
+  return /jira-board-assignee-bridge\.dfkabir253\.workers\.dev/i.test(endpoint);
 }
 
 function buildReleaseAnalytics(data: DashboardData | null, issues: Issue[], changeSets: ChangeSets): ReleaseAnalytics {

@@ -189,8 +189,15 @@ Generated data that does not belong in this template:
 - React and TanStack Table ticket explorer inside the Astro preview
 - Checklist workspace with editable QA cases, evidence, concerns, preview, and Cloudflare bridge submission
 - Release analytics band with assignee load, pull movement history, priority mix, and component concentration
+- Operations health center for data pull freshness, Pages deploy links, bridge auth, Actions history, and Slack workflow checks
 
 ## Version History
+
+### v1.10.11
+
+- Added the SPEC-08 operations health center to the Astro preview.
+- Separated Jira data pull freshness, GitHub Pages publishing, Cloudflare bridge auth, workflow history, and Slack notification links.
+- Flagged localhost bridge endpoints as bad live-board configuration instead of falling back to laptop-local writes.
 
 ### v1.10.10
 

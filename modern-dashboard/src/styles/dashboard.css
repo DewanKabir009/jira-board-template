@@ -160,6 +160,149 @@ h3 {
   font-weight: 850;
 }
 
+.operations-health {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+
+.operations-heading,
+.ops-card-head,
+.ops-links {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.operations-heading {
+  justify-content: space-between;
+}
+
+.ops-summary,
+.ops-card-head span:last-child {
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 6px 10px;
+}
+
+.ops-summary.good,
+.ops-card.good .ops-card-head span:last-child {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.ops-summary.attention,
+.ops-summary.warning,
+.ops-card.attention .ops-card-head span:last-child,
+.ops-card.warning .ops-card-head span:last-child {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.ops-summary.danger,
+.ops-card.danger .ops-card-head span:last-child {
+  background: var(--rose-soft);
+  color: var(--rose);
+}
+
+.ops-summary.neutral,
+.ops-card.neutral .ops-card-head span:last-child {
+  background: var(--surface-muted);
+  color: var(--muted);
+}
+
+.ops-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ops-card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-height: 188px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 12px;
+}
+
+.ops-card.good {
+  border-color: rgba(5, 135, 100, 0.35);
+}
+
+.ops-card.attention,
+.ops-card.warning {
+  border-color: rgba(183, 121, 31, 0.38);
+}
+
+.ops-card.danger {
+  border-color: rgba(180, 35, 72, 0.38);
+}
+
+.ops-card h3 {
+  min-height: 2.7em;
+}
+
+.ops-card p,
+.ops-footnote {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.health-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--muted);
+}
+
+.health-dot.good {
+  background: var(--green);
+}
+
+.health-dot.attention,
+.health-dot.warning {
+  background: var(--amber);
+}
+
+.health-dot.danger {
+  background: var(--rose);
+}
+
+.ops-links {
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+.ops-links a {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--blue);
+  font-size: 0.78rem;
+  font-weight: 850;
+  padding: 0 9px;
+  text-decoration: none;
+}
+
+.ops-footnote {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  font-weight: 750;
+}
+
 .analytics-band {
   display: grid;
   gap: 14px;
@@ -1110,6 +1253,10 @@ h3 {
     grid-template-columns: 1fr;
   }
 
+  .ops-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .analytics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1141,11 +1288,13 @@ h3 {
   .metric-grid,
   .status-lanes,
   .ticket-list,
+  .ops-grid,
   .analytics-grid,
   .explorer-filters {
     grid-template-columns: 1fr;
   }
 
+  .operations-heading,
   .analytics-heading {
     align-items: flex-start;
     flex-direction: column;
