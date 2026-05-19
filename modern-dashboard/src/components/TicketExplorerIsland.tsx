@@ -638,7 +638,7 @@ function ChecklistWorkspace({ issue, data }: { issue: Issue; data: DashboardData
             </label>
             <div className="workspace-item-body">
               <input value={item.title} onChange={(event) => updateItem(item.id, { title: event.target.value })} aria-label="Test case title" />
-              <textarea value={item.notes} onChange={(event) => updateItem(item.id, { notes: event.target.value })} placeholder="Result notes" />
+              <textarea value={item.notes} onChange={(event) => updateItem(item.id, { notes: event.target.value })} placeholder="Result notes" aria-label="Result notes" />
               {item.description || item.checks.length ? (
                 <details>
                   <summary>{item.manual ? "Manual case" : "Imported case"}{item.checks.length ? ` / ${item.checks.length} checks` : ""}</summary>
