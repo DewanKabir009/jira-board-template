@@ -1,0 +1,21 @@
+---
+interface Props {
+  title: string;
+  dataUrl: string;
+}
+
+const { title, dataUrl } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" data-dashboard-data-url={dataUrl}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content="Astro Jira dashboard migration shell" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

@@ -1,0 +1,20 @@
+---
+import BoardMeta from "../components/BoardMeta.astro";
+import FilterBar from "../components/FilterBar.astro";
+import TicketPreviewList from "../components/TicketPreviewList.astro";
+import DashboardLayout from "../layouts/DashboardLayout.astro";
+import "../styles/dashboard.css";
+
+const dataUrl = import.meta.env.PUBLIC_DASHBOARD_DATA_URL || "../dashboard-data.json";
+---
+
+<DashboardLayout title="Modern Jira Dashboard" dataUrl={dataUrl}>
+  <main class="dashboard-shell" data-dashboard-shell data-data-url={dataUrl}>
+    <BoardMeta />
+    <FilterBar />
+    <TicketPreviewList />
+  </main>
+  <script>
+    import "../scripts/dashboard-shell.js";
+  </script>
+</DashboardLayout>

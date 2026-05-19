@@ -13,6 +13,7 @@ This repo owns the shared dashboard code: Jira pulls, HTML generation, GitHub Ac
 - Slack and email notification script hooks
 - Cloudflare Worker bridge source for hosted assignee/checklist dispatch
 - Local bridge fallback scripts for development
+- Astro migration shell under `modern-dashboard/` for the future static UI
 - Placeholder `index.html` so the template repo can be published safely without live Jira data
 
 ## How To Spin Up A New Board
@@ -123,6 +124,25 @@ Generated board URL pattern:
 https://dewankabir009.github.io/jira-board-v3001-124-0/
 ```
 
+## Modern Dashboard Shell
+
+SPEC-04 introduces a parallel Astro app in `modern-dashboard/`. It reads the published `dashboard-data.json` artifact and can build a static GitHub Pages-compatible bundle without replacing the current generated board.
+
+The current `index.html` generator remains the production path until the modern dashboard reaches parity for ticket scanning, filters, media, Jira links, assignee writes, checklist comment posting, and board navigation.
+
+Manual build:
+
+```powershell
+Set-Location modern-dashboard
+$env:ASTRO_BASE = "/jira-board-v3001-124-0/modern/"
+$env:ASTRO_SITE = "https://dewankabir009.github.io/jira-board-v3001-124-0/"
+$env:PUBLIC_DASHBOARD_DATA_URL = "../dashboard-data.json"
+npm ci
+npm run build
+```
+
+The `Modern Dashboard Static Build` workflow validates this shell on demand and on pull requests that touch `modern-dashboard/`. It uploads the static output as an artifact instead of deploying it over the live board.
+
 ## Local First Pull
 
 ```powershell
@@ -165,8 +185,15 @@ Generated data that does not belong in this template:
 - Slack notification formatting for added, updated, moved, and removed tickets
 - Email notification hook for future SMTP or email-service wiring
 - Cloudflare-hosted bridge support
+- Astro static shell scaffold for the modern dashboard migration
 
 ## Version History
+
+### v1.10.7
+
+- Added the SPEC-04 Astro migration shell under `modern-dashboard/`.
+- Added a manual static build workflow that produces a GitHub Pages-compatible artifact without replacing the live generated board.
+- Started initial layout, metadata, filters, status lanes, and ticket-card components backed by `dashboard-data.json`.
 
 ### v1.10.6
 
