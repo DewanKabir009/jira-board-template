@@ -523,6 +523,233 @@ h3 {
   flex-wrap: wrap;
 }
 
+.checklist-workspace {
+  display: grid;
+  gap: 14px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.workspace-heading,
+.workspace-progress,
+.workspace-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.workspace-state {
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 6px 10px;
+}
+
+.workspace-state.draft {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.workspace-state.ready,
+.workspace-state.submitted {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.workspace-state.submitting {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.workspace-state.failed {
+  background: var(--rose-soft);
+  color: var(--rose);
+}
+
+.workspace-progress {
+  align-items: flex-start;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.workspace-ticket-fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.workspace-ticket-fields label,
+.workspace-item-body {
+  display: grid;
+  gap: 7px;
+}
+
+.workspace-ticket-fields span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.workspace-ticket-fields textarea,
+.workspace-item-body textarea,
+.workspace-item-body input {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 9px 10px;
+}
+
+.workspace-ticket-fields textarea,
+.workspace-item-body textarea {
+  min-height: 74px;
+  resize: vertical;
+}
+
+.workspace-items {
+  display: grid;
+  gap: 10px;
+  max-height: 440px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.workspace-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 10px;
+}
+
+.workspace-check {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.workspace-check input {
+  width: 18px;
+  height: 18px;
+}
+
+.workspace-item details {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.workspace-item summary {
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.workspace-item ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.workspace-remove,
+.workspace-actions button {
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.workspace-remove {
+  width: 32px;
+  height: 32px;
+}
+
+.workspace-actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.workspace-actions button {
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.workspace-actions .primary-action {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: #ffffff;
+}
+
+.workspace-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.workspace-empty,
+.workspace-message {
+  border-radius: 8px;
+  padding: 10px;
+  font-weight: 800;
+}
+
+.workspace-empty {
+  border: 1px dashed var(--line-strong);
+  color: var(--muted);
+}
+
+.workspace-message {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.workspace-message.failed {
+  background: var(--rose-soft);
+  color: var(--rose);
+}
+
+.workspace-message.submitted,
+.workspace-message.ready {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.comment-preview {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 10px;
+}
+
+.comment-preview summary {
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.comment-preview pre {
+  max-height: 280px;
+  overflow: auto;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
 .ticket-panel {
   display: grid;
   gap: 16px;
@@ -679,5 +906,15 @@ h3 {
   .ticket-fields {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .workspace-item {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-heading,
+  .workspace-progress {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

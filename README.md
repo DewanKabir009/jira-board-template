@@ -187,8 +187,15 @@ Generated data that does not belong in this template:
 - Cloudflare-hosted bridge support
 - Astro static shell scaffold for the modern dashboard migration
 - React and TanStack Table ticket explorer inside the Astro preview
+- Checklist workspace with editable QA cases, evidence, concerns, preview, and Cloudflare bridge submission
 
 ## Version History
+
+### v1.10.9
+
+- Added the SPEC-06 checklist workspace inside the Astro preview.
+- Added imported and manual checklist state, ticket-level evidence and concerns, Jira comment preview, and draft/ready/submitted/failed states.
+- Preserved checklist comment posting through the hosted Cloudflare bridge.
 
 ### v1.10.8
 

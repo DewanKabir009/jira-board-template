@@ -26,3 +26,5 @@ Rows link directly to Jira. The detail panel also links back to the current gene
 ## Next Dependency
 
 SPEC-06 can now move checklist work into this React island without adding more state to the legacy generated HTML.
+
+SPEC-06 is now complete and adds the checklist workspace to the selected-ticket detail panel.

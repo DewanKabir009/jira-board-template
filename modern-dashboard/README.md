@@ -38,6 +38,12 @@ SPEC-05 adds a React island powered by TanStack Table. The island loads `dashboa
 
 Rows link directly to Jira, while the detail panel keeps a current-board action link available so assignee and checklist workflows can stay on the proven generated dashboard until parity is complete.
 
+## Checklist Workspace
+
+SPEC-06 adds an editable QA workspace to the selected-ticket detail panel. Imported checklist cases are loaded from `dashboard-data.json`, manual cases can be added, and ticket-level evidence and concerns are saved in browser storage.
+
+The workspace generates a Jira comment preview before submission. Submissions use the existing `testChecklistCommentEndpoint` or the hosted `/comment-checklist` route derived from the Cloudflare bridge endpoint, preserving the current workflow-dispatch posting path.
+
 ## Migration Rule
 
 Do not replace the current generated board until the Astro shell has parity for ticket scanning, filters, Jira links, assignee writes, checklist comments, media, and release-board navigation.

@@ -28,9 +28,20 @@ type Issue = {
   parent?: { key?: string; summary?: string } | string | null;
   description?: string;
   testChecklist?: {
+    files?: Array<{ filename?: string; id?: string }>;
     total?: number;
-    testCases?: unknown[];
+    testCases?: TestCase[];
   } | null;
+};
+
+type TestCase = {
+  id?: string;
+  title?: string;
+  category?: string;
+  blocking?: boolean;
+  description?: string;
+  checks?: string[];
+  sourceFile?: string;
 };
 
 type DashboardData = {
@@ -40,6 +51,7 @@ type DashboardData = {
   dashboardUrl?: string;
   jiraFilterUrl?: string;
   assigneeDispatchEndpoint?: string;
+  testChecklistCommentEndpoint?: string;
   schemaVersion?: string;
   dataArtifact?: { fileName?: string };
   total?: number;
@@ -71,6 +83,29 @@ type Filters = {
 };
 
 type PresetKey = "all" | "qa" | "review" | "moves" | "unassigned";
+
+type WorkspaceStatus = "draft" | "ready" | "submitting" | "submitted" | "failed";
+
+type ChecklistItem = {
+  id: string;
+  sourceId: string;
+  sourceFile: string;
+  manual: boolean;
+  title: string;
+  done: boolean;
+  notes: string;
+  description: string;
+  checks: string[];
+};
+
+type ChecklistWorkspaceState = {
+  items: ChecklistItem[];
+  evidence: string;
+  concerns: string;
+  status: WorkspaceStatus;
+  message: string;
+  submittedAt: string;
+};
 
 const PAGE_SIZE_OPTIONS = [15, 25, 50];
 
@@ -431,7 +466,207 @@ function TicketDetail({ issue, data, changeSets }: { issue?: Issue; data: Dashbo
         <a className="button-link primary" href={issue.url || "#"} target="_blank" rel="noreferrer">Open Jira</a>
         <a className="button-link" href={data?.dashboardUrl || "../"}>Current board actions</a>
       </div>
+      <ChecklistWorkspace issue={issue} data={data} />
     </aside>
+  );
+}
+
+function ChecklistWorkspace({ issue, data }: { issue: Issue; data: DashboardData | null }) {
+  const storageKey = useMemo(() => checklistStorageKey(data, issue), [data, issue]);
+  const [workspace, setWorkspace] = useState<ChecklistWorkspaceState>(() => createWorkspace(issue, null));
+
+  useEffect(() => {
+    setWorkspace(createWorkspace(issue, storageKey));
+  }, [issue, storageKey]);
+
+  useEffect(() => {
+    if (!storageKey || workspace.status === "submitting") {
+      return;
+    }
+
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({
+        items: workspace.items,
+        evidence: workspace.evidence,
+        concerns: workspace.concerns,
+        status: workspace.status,
+        message: workspace.message,
+        submittedAt: workspace.submittedAt
+      }));
+    } catch (error) {
+      console.warn("Could not save checklist workspace.", error);
+    }
+  }, [storageKey, workspace]);
+
+  const completeCount = workspace.items.filter((item) => item.done).length;
+  const preview = buildCommentPreview(issue, data, workspace);
+  const canSubmit = workspace.items.length > 0 && workspace.status !== "submitting";
+
+  function updateWorkspace(next: Partial<ChecklistWorkspaceState>) {
+    setWorkspace((current) => ({
+      ...current,
+      ...next,
+      status: current.status === "submitted" || current.status === "ready" ? "draft" : current.status,
+      message: current.status === "failed" ? "" : current.message
+    }));
+  }
+
+  function updateItem(itemId: string, next: Partial<ChecklistItem>) {
+    setWorkspace((current) => ({
+      ...current,
+      status: current.status === "submitted" || current.status === "ready" ? "draft" : current.status,
+      message: current.status === "failed" ? "" : current.message,
+      items: current.items.map((item) => item.id === itemId ? { ...item, ...next } : item)
+    }));
+  }
+
+  function addManualItem() {
+    setWorkspace((current) => ({
+      ...current,
+      status: "draft",
+      message: "",
+      items: [...current.items, makeManualItem()]
+    }));
+  }
+
+  function removeItem(itemId: string) {
+    setWorkspace((current) => ({
+      ...current,
+      status: "draft",
+      message: "",
+      items: current.items.filter((item) => item.id !== itemId)
+    }));
+  }
+
+  function markReady() {
+    setWorkspace((current) => ({
+      ...current,
+      status: current.items.length ? "ready" : "draft",
+      message: current.items.length ? "Ready to submit through the Cloudflare bridge." : "Add at least one test case first."
+    }));
+  }
+
+  async function submitChecklist() {
+    if (!canSubmit) {
+      return;
+    }
+
+    const endpoint = checklistEndpoint(data);
+    if (!endpoint) {
+      setWorkspace((current) => ({
+        ...current,
+        status: "failed",
+        message: "Checklist bridge endpoint is not configured for this board."
+      }));
+      return;
+    }
+
+    setWorkspace((current) => ({
+      ...current,
+      status: "submitting",
+      message: "Submitting checklist comment through the Cloudflare bridge..."
+    }));
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=UTF-8" },
+        credentials: "include",
+        body: JSON.stringify(buildChecklistPayload(issue, data, workspace))
+      });
+      const payload = await response.json().catch(() => ({ ok: false, message: "The checklist bridge returned an unreadable response." }));
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.message || payload.error || "The checklist bridge rejected the request.");
+      }
+
+      setWorkspace((current) => ({
+        ...current,
+        status: "submitted",
+        submittedAt: new Date().toISOString(),
+        message: "Jira comment request accepted."
+      }));
+    } catch (error) {
+      setWorkspace((current) => ({
+        ...current,
+        status: "failed",
+        message: error instanceof Error ? error.message : "Bridge could not submit the Jira comment."
+      }));
+    }
+  }
+
+  return (
+    <section className="checklist-workspace" aria-label="Checklist workspace">
+      <div className="workspace-heading">
+        <div>
+          <p className="eyebrow">QA workspace</p>
+          <h3>Checklist workspace</h3>
+        </div>
+        <span className={`workspace-state ${workspace.status}`}>{workspaceStatusLabel(workspace.status)}</span>
+      </div>
+
+      <div className="workspace-progress">
+        <span>{completeCount} of {workspace.items.length} complete</span>
+        <span>{sourceFileLabels(issue).join(", ") || "Manual checklist"}</span>
+      </div>
+
+      <div className="workspace-ticket-fields">
+        <label>
+          <span>Evidence</span>
+          <textarea
+            value={workspace.evidence}
+            onChange={(event) => updateWorkspace({ evidence: event.target.value })}
+            placeholder="Build, environment, data setup, screenshots, or API evidence"
+          />
+        </label>
+        <label>
+          <span>Concerns</span>
+          <textarea
+            value={workspace.concerns}
+            onChange={(event) => updateWorkspace({ concerns: event.target.value })}
+            placeholder="Risks, follow-ups, blockers, or open questions"
+          />
+        </label>
+      </div>
+
+      <div className="workspace-items">
+        {workspace.items.length ? workspace.items.map((item, index) => (
+          <article className="workspace-item" key={item.id}>
+            <label className="workspace-check">
+              <input type="checkbox" checked={item.done} onChange={(event) => updateItem(item.id, { done: event.target.checked })} />
+              <span>{index + 1}</span>
+            </label>
+            <div className="workspace-item-body">
+              <input value={item.title} onChange={(event) => updateItem(item.id, { title: event.target.value })} aria-label="Test case title" />
+              <textarea value={item.notes} onChange={(event) => updateItem(item.id, { notes: event.target.value })} placeholder="Result notes" />
+              {item.description || item.checks.length ? (
+                <details>
+                  <summary>{item.manual ? "Manual case" : "Imported case"}{item.checks.length ? ` / ${item.checks.length} checks` : ""}</summary>
+                  {item.description ? <p>{item.description}</p> : null}
+                  {item.checks.length ? <ul>{item.checks.map((check) => <li key={check}>{check}</li>)}</ul> : null}
+                </details>
+              ) : null}
+            </div>
+            <button className="workspace-remove" type="button" onClick={() => removeItem(item.id)} aria-label="Remove test case">x</button>
+          </article>
+        )) : <p className="workspace-empty">No test cases yet. Add a manual case to start this checklist.</p>}
+      </div>
+
+      <div className="workspace-actions">
+        <button type="button" onClick={addManualItem}>Add manual case</button>
+        <button type="button" onClick={markReady}>Mark ready</button>
+        <button type="button" className="primary-action" disabled={!canSubmit} onClick={submitChecklist}>
+          {workspace.status === "submitting" ? "Submitting..." : "Submit Jira comment"}
+        </button>
+      </div>
+
+      {workspace.message ? <p className={`workspace-message ${workspace.status}`} role="status">{workspace.message}</p> : null}
+
+      <details className="comment-preview" open>
+        <summary>Jira comment preview</summary>
+        <pre>{preview}</pre>
+      </details>
+    </section>
   );
 }
 
@@ -645,4 +880,217 @@ function sortLabel(value: false | "asc" | "desc") {
   }
 
   return "";
+}
+
+function createWorkspace(issue: Issue, storageKey: string | null): ChecklistWorkspaceState {
+  const baseItems = baseChecklistItems(issue);
+  const empty = emptyWorkspace(baseItems);
+
+  if (!storageKey) {
+    return empty;
+  }
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+    if (!saved) {
+      return empty;
+    }
+
+    const savedItems = Array.isArray(saved.items) ? saved.items : [];
+    const savedById = new Map(savedItems.map((item: ChecklistItem) => [item.id, item]));
+    const mergedItems = baseItems.map((item) => {
+      const savedItem = savedById.get(item.id);
+      return savedItem ? normalizeChecklistItem({ ...item, ...savedItem }) : item;
+    });
+
+    for (const savedItem of savedItems) {
+      if (savedItem?.manual && !mergedItems.some((item) => item.id === savedItem.id)) {
+        mergedItems.push(normalizeChecklistItem(savedItem));
+      }
+    }
+
+    return {
+      items: mergedItems,
+      evidence: String(saved.evidence || ""),
+      concerns: String(saved.concerns || ""),
+      status: isWorkspaceStatus(saved.status) ? saved.status : "draft",
+      message: String(saved.message || ""),
+      submittedAt: String(saved.submittedAt || "")
+    };
+  } catch (error) {
+    console.warn("Could not load checklist workspace.", error);
+    return empty;
+  }
+}
+
+function emptyWorkspace(items: ChecklistItem[] = []): ChecklistWorkspaceState {
+  return {
+    items,
+    evidence: "",
+    concerns: "",
+    status: "draft",
+    message: "",
+    submittedAt: ""
+  };
+}
+
+function isWorkspaceStatus(value: unknown): value is WorkspaceStatus {
+  return value === "draft" || value === "ready" || value === "submitting" || value === "submitted" || value === "failed";
+}
+
+function baseChecklistItems(issue: Issue): ChecklistItem[] {
+  const testCases = Array.isArray(issue.testChecklist?.testCases) ? issue.testChecklist?.testCases : [];
+
+  return testCases.map((testCase, index) => normalizeChecklistItem({
+    id: `${testCase.sourceFile || "source"}::${testCase.id || "TC"}::${index}`,
+    sourceId: testCase.id || "",
+    sourceFile: testCase.sourceFile || "",
+    manual: false,
+    title: `${testCase.id ? `${testCase.id}: ` : ""}${testCase.title || "Untitled test case"}`,
+    done: false,
+    notes: "",
+    description: testCase.description || "",
+    checks: Array.isArray(testCase.checks) ? testCase.checks : []
+  }));
+}
+
+function normalizeChecklistItem(item: Partial<ChecklistItem>): ChecklistItem {
+  return {
+    id: String(item.id || makeId("item")),
+    sourceId: String(item.sourceId || ""),
+    sourceFile: String(item.sourceFile || (item.manual ? "Manual" : "")),
+    manual: Boolean(item.manual),
+    title: String(item.title || "New test case"),
+    done: Boolean(item.done),
+    notes: String(item.notes || ""),
+    description: String(item.description || ""),
+    checks: Array.isArray(item.checks) ? item.checks.map((check) => String(check)) : []
+  };
+}
+
+function makeManualItem(): ChecklistItem {
+  return normalizeChecklistItem({
+    id: makeId("manual"),
+    manual: true,
+    sourceFile: "Manual",
+    title: "New test case",
+    done: false,
+    notes: ""
+  });
+}
+
+function makeId(prefix: string) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${prefix}::${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}::${Date.now()}::${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function checklistStorageKey(data: DashboardData | null, issue: Issue) {
+  if (!issue.key) {
+    return null;
+  }
+
+  const files = sourceFileLabels(issue).join("|") || "manual";
+  return `modern-checklist-v1:${data?.version || "unknown"}:${issue.key}:${files}`;
+}
+
+function sourceFileLabels(issue: Issue) {
+  return (issue.testChecklist?.files || [])
+    .map((file) => file.filename || file.id || "")
+    .filter(Boolean);
+}
+
+function workspaceStatusLabel(status: WorkspaceStatus) {
+  if (status === "ready") {
+    return "Ready";
+  }
+
+  if (status === "submitting") {
+    return "Submitting";
+  }
+
+  if (status === "submitted") {
+    return "Submitted";
+  }
+
+  if (status === "failed") {
+    return "Failed";
+  }
+
+  return "Draft";
+}
+
+function checklistEndpoint(data: DashboardData | null) {
+  if (data?.testChecklistCommentEndpoint) {
+    return data.testChecklistCommentEndpoint;
+  }
+
+  if (data?.assigneeDispatchEndpoint) {
+    return data.assigneeDispatchEndpoint.replace(/\/assign$/, "/comment-checklist");
+  }
+
+  return "";
+}
+
+function buildChecklistPayload(issue: Issue, data: DashboardData | null, workspace: ChecklistWorkspaceState) {
+  return {
+    issueKey: issue.key,
+    issueUrl: issue.url,
+    summary: issue.summary,
+    releaseVersion: data?.version || "",
+    repositorySlug: data?.repositorySlug || "",
+    dashboardUrl: typeof window === "undefined" ? data?.dashboardUrl || "" : window.location.href,
+    sourceFiles: sourceFileLabels(issue),
+    items: payloadItems(workspace)
+  };
+}
+
+function payloadItems(workspace: ChecklistWorkspaceState) {
+  const items = workspace.items.map((item) => ({
+    title: item.title,
+    done: Boolean(item.done),
+    notes: item.notes || "",
+    images: []
+  }));
+
+  if (workspace.evidence || workspace.concerns) {
+    items.push({
+      title: "Ticket-level evidence and concerns",
+      done: Boolean(workspace.evidence && !workspace.concerns),
+      notes: [
+        workspace.evidence ? `Evidence: ${workspace.evidence}` : "",
+        workspace.concerns ? `Concerns: ${workspace.concerns}` : ""
+      ].filter(Boolean).join("\n\n"),
+      images: []
+    });
+  }
+
+  return items;
+}
+
+function buildCommentPreview(issue: Issue, data: DashboardData | null, workspace: ChecklistWorkspaceState) {
+  const items = payloadItems(workspace);
+  const complete = items.filter((item) => item.done).length;
+  const sourceFiles = sourceFileLabels(issue).join(", ") || "Manual checklist";
+  const lines = [
+    `Test checklist submitted for ${issue.key || "ticket"}.`,
+    `Progress: ${complete} of ${items.length} complete.`,
+    `Source: ${sourceFiles}.`,
+    `Dashboard: ${data?.dashboardUrl || "Current board"}.`,
+    "",
+    "| # | Status | Test case | Notes |",
+    "| --- | --- | --- | --- |",
+    ...items.map((item, index) => `| ${index + 1} | ${item.done ? "Complete" : "Open"} | ${escapeTableCell(item.title)} | ${escapeTableCell(item.notes)} |`)
+  ];
+
+  return lines.join("\n");
+}
+
+function escapeTableCell(value: string) {
+  return String(value || "")
+    .replace(/\r?\n/g, "<br>")
+    .replace(/\|/g, "\\|")
+    .trim();
 }
