@@ -6,7 +6,7 @@ import {
   type SortingState,
   useReactTable
 } from "@tanstack/react-table";
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useId, useMemo, useState } from "react";
 
 type PullChange = string | {
   key?: string;
@@ -36,6 +36,8 @@ type Issue = {
   status?: string;
   priority?: string;
   assignee?: string;
+  assigneeAvatarUrl?: string;
+  assigneeAccountId?: string;
   updatedDisplay?: string;
   components?: string[];
   parent?: { key?: string; summary?: string } | string | null;
@@ -115,6 +117,19 @@ type Filters = {
   component: string;
   parent: string;
   changed: string;
+};
+
+type SelectOption = {
+  value: string;
+  label: string;
+  avatarUrl?: string;
+};
+
+type FilterOptionSet = {
+  statuses: SelectOption[];
+  assignees: SelectOption[];
+  priorities: SelectOption[];
+  components: SelectOption[];
 };
 
 type PresetKey = "all" | "qa" | "review" | "moves" | "unassigned";
@@ -440,28 +455,32 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
             <input value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} placeholder="Ticket, summary, assignee, component" />
           </label>
           <SelectFilter label="Status" value={filters.status} options={options.statuses} onChange={(value) => updateFilter("status", value)} />
-          <SelectFilter label="Assignee" value={filters.assignee} options={options.assignees} onChange={(value) => updateFilter("assignee", value)} />
+          <SelectFilter label="Assignee" value={filters.assignee} options={options.assignees} onChange={(value) => updateFilter("assignee", value)} showAvatars />
           <SelectFilter label="Priority" value={filters.priority} options={options.priorities} onChange={(value) => updateFilter("priority", value)} />
           <SelectFilter label="Component" value={filters.component} options={options.components} onChange={(value) => updateFilter("component", value)} />
-          <label>
-            <span>Parent</span>
-            <select value={filters.parent} onChange={(event) => updateFilter("parent", event.target.value)}>
-              <option value="">All work</option>
-              <option value="main">Main tickets</option>
-              <option value="subtasks">Subtasks</option>
-              <option value="has-parent">Has parent</option>
-            </select>
-          </label>
-          <label>
-            <span>Changed</span>
-            <select value={filters.changed} onChange={(event) => updateFilter("changed", event.target.value)}>
-              <option value="">Any snapshot state</option>
-              <option value="any">Any change</option>
-              <option value="added">Added</option>
-              <option value="updated">Updated</option>
-              <option value="status">Status moved</option>
-            </select>
-          </label>
+          <SelectFilter
+            label="Parent"
+            value={filters.parent}
+            options={[
+              { value: "main", label: "Main tickets" },
+              { value: "subtasks", label: "Subtasks" },
+              { value: "has-parent", label: "Has parent" }
+            ]}
+            allLabel="All work"
+            onChange={(value) => updateFilter("parent", value)}
+          />
+          <SelectFilter
+            label="Changed"
+            value={filters.changed}
+            options={[
+              { value: "any", label: "Any change" },
+              { value: "added", label: "Added" },
+              { value: "updated", label: "Updated" },
+              { value: "status", label: "Status moved" }
+            ]}
+            allLabel="Any snapshot state"
+            onChange={(value) => updateFilter("changed", value)}
+          />
         </div>
 
         {loadError ? <p className="load-error">{loadError}</p> : null}
@@ -470,12 +489,13 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
           <div className="table-card">
             <div className="table-summary">
               <span>{filteredIssues.length} matching tickets</span>
-              <label>
-                <span>Rows</span>
-                <select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}>
-                  {PAGE_SIZE_OPTIONS.map((value) => <option key={value} value={value}>{value}</option>)}
-                </select>
-              </label>
+              <SelectFilter
+                label="Rows"
+                value={String(pageSize)}
+                options={PAGE_SIZE_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))}
+                includeAll={false}
+                onChange={(value) => setPageSize(Number(value))}
+              />
             </div>
             <div className="ticket-table-wrap">
               <table className="ticket-table">
@@ -891,16 +911,143 @@ function PresetButton({ label, active, onClick }: { label: string; active: boole
   );
 }
 
-function SelectFilter({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
+function SelectFilter({
+  label,
+  value,
+  options,
+  onChange,
+  allLabel,
+  includeAll = true,
+  showAvatars = false
+}: {
+  label: string;
+  value: string;
+  options: SelectOption[];
+  onChange: (value: string) => void;
+  allLabel?: string;
+  includeAll?: boolean;
+  showAvatars?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const listboxId = useId();
+  const normalizedOptions = allLabel === undefined || !includeAll ? options : [{ value: "", label: allLabel }, ...options];
+  const selected = normalizedOptions.find((option) => option.value === value) || options.find((option) => option.value === value);
+  const display = selected || { value: "", label: allLabel || `All ${label.toLowerCase()}` };
+  const hasInlineAll = includeAll && allLabel === undefined;
+
+  function choose(optionValue: string) {
+    onChange(optionValue);
+    setOpen(false);
+  }
+
   return (
-    <label>
+    <div
+      className="select-control"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setOpen(false);
+        }
+      }}
+    >
       <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
-        <option value="">All {label.toLowerCase()}</option>
-        {options.map((option) => <option key={option} value={option}>{option}</option>)}
-      </select>
-    </label>
+      <button
+        type="button"
+        className="custom-select-trigger"
+        aria-label={`${label}: ${display.label}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        onClick={() => setOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setOpen(false);
+          }
+        }}
+      >
+        {showAvatars ? <Avatar option={display} /> : null}
+        <span className="custom-select-value">{display.label}</span>
+        <span className="custom-select-chevron" aria-hidden="true">v</span>
+      </button>
+      {open ? (
+        <div className="custom-select-menu" id={listboxId} role="listbox" aria-label={label} tabIndex={-1}>
+          {hasInlineAll ? (
+            <button
+              type="button"
+              role="option"
+              aria-selected={value === ""}
+              className={value === "" ? "custom-select-option selected" : "custom-select-option"}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => choose("")}
+            >
+              {showAvatars ? <Avatar option={{ value: "", label: "All" }} /> : null}
+              <span>All {label.toLowerCase()}</span>
+            </button>
+          ) : null}
+          {normalizedOptions.map((option) => (
+            <button
+              type="button"
+              role="option"
+              aria-selected={value === option.value}
+              className={value === option.value ? "custom-select-option selected" : "custom-select-option"}
+              key={`${label}-${option.value || option.label}`}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => choose(option.value)}
+            >
+              {showAvatars ? <Avatar option={option} /> : null}
+              <span>{option.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
+}
+
+function Avatar({ option }: { option: SelectOption }) {
+  if (option.avatarUrl) {
+    return <img className="assignee-avatar" src={option.avatarUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />;
+  }
+
+  return <span className="assignee-avatar fallback" aria-hidden="true">{avatarInitials(option.label)}</span>;
+}
+
+function avatarInitials(label: string) {
+  if (!label || label.toLowerCase().startsWith("all")) {
+    return "All";
+  }
+
+  if (label === "Unassigned") {
+    return "Un";
+  }
+
+  return label
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word.charAt(0).toUpperCase())
+    .join("");
+}
+
+function toSelectOptions(values: string[]): SelectOption[] {
+  return values.map((value) => ({ value, label: value }));
+}
+
+function assigneeOptions(issues: Issue[]): SelectOption[] {
+  const optionsByName = new Map<string, SelectOption>();
+
+  for (const issue of issues) {
+    const label = issue.assignee || "Unassigned";
+    const existing = optionsByName.get(label);
+    const avatarUrl = issue.assigneeAvatarUrl || "";
+
+    if (!existing) {
+      optionsByName.set(label, { value: label, label, avatarUrl });
+    } else if (!existing.avatarUrl && avatarUrl) {
+      optionsByName.set(label, { ...existing, avatarUrl });
+    }
+  }
+
+  return Array.from(optionsByName.values()).sort((first, second) => first.label.localeCompare(second.label));
 }
 
 function TicketDetail({ issue, data, changeSets }: { issue?: Issue; data: DashboardData | null; changeSets: ChangeSets }) {
@@ -1194,12 +1341,12 @@ async function fetchBoardRegistry(requestedUrl: string): Promise<BoardRegistry> 
   throw new Error(lastError || "Unable to load boards.json.");
 }
 
-function createFilterOptions(issues: Issue[]) {
+function createFilterOptions(issues: Issue[]): FilterOptionSet {
   return {
-    statuses: uniqueValues(issues.map((issue) => issue.status)),
-    assignees: uniqueValues(issues.map((issue) => issue.assignee || "Unassigned")),
-    priorities: uniqueValues(issues.map((issue) => issue.priority || "None")),
-    components: uniqueValues(issues.flatMap((issue) => issue.components || []))
+    statuses: toSelectOptions(uniqueValues(issues.map((issue) => issue.status))),
+    assignees: assigneeOptions(issues),
+    priorities: toSelectOptions(uniqueValues(issues.map((issue) => issue.priority || "None"))),
+    components: toSelectOptions(uniqueValues(issues.flatMap((issue) => issue.components || [])))
   };
 }
 

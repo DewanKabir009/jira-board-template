@@ -30,7 +30,7 @@ const focusSelectors = [
   ".board-card-links a",
   ".preset-button",
   ".explorer-filters input",
-  ".explorer-filters select",
+  ".custom-select-trigger",
   ".summary-button",
   ".row-actions button",
   ".workspace-actions button",

@@ -12,6 +12,7 @@ The modern dashboard can be promoted only after the team has current evidence th
 - Kept read parity separate from Jira mutation checks.
 - Added explicit evidence-required gates for assignee writes, checklist comments, and Slack delivery.
 - Linked each gate to the current board, modern preview, Cloudflare bridge status, GitHub Actions workflows, or this runbook.
+- Hardened the visual QA surface with custom compact dropdowns, Jira assignee avatars, and refreshed dashboard color tokens.
 
 ## Validation Gates
 
@@ -43,6 +44,7 @@ The modern dashboard can be promoted only after the team has current evidence th
 ## Acceptance
 
 - Modern previews display the cutover validation gates.
+- Modern preview dropdowns are custom controls, not native browser select menus, and assignee options show Jira avatars when the data artifact includes them.
 - Write-path gates remain evidence-required until a named test ticket proves the mutation.
 - The checklist website exposes this runbook as SPEC-12.
 - Current boards remain available as the fallback path.

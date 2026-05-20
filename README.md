@@ -194,8 +194,15 @@ Generated data that does not belong in this template:
 - Accessibility and responsive QA harness for focus visibility, overflow checks, and screenshot review artifacts
 - Rollout readiness and fallback plan for keeping the current board available during modern preview migration
 - Cutover readiness validation for assignee writes, checklist comments, Slack delivery, and final signoff evidence
+- Custom compact dropdown controls with Jira assignee avatar support in the modern preview
 
 ## Version History
+
+### v1.10.16
+
+- Replaced native browser filters in the Astro preview with compact custom dropdown controls.
+- Added Jira assignee avatar fields to the data pull and avatar-aware assignee filtering in the preview.
+- Refreshed the dashboard color tokens with a cleaner 2026 enterprise palette across blue, teal, amber, rose, and violet accents.
 
 ### v1.10.15
 

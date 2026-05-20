@@ -52,6 +52,10 @@ SPEC-11 keeps the generated root dashboard as the working QA surface until the m
 
 SPEC-12 adds explicit cutover evidence gates to the modern preview. Read parity can be checked from the published data artifact, while assignee writes, checklist comments, and Slack delivery stay marked as evidence-required until a named test ticket proves the live workflow.
 
+## Visual QA Hardening
+
+The modern preview uses custom compact dropdowns for ticket filters and row count controls instead of native browser select menus. The assignee filter reads `assigneeAvatarUrl` from `dashboard-data.json` and shows Jira profile images when available, with initials as the compact fallback for unassigned or older snapshots.
+
 ## Ticket Explorer Island
 
 SPEC-05 adds a React island powered by TanStack Table. The island loads `dashboard-data.json`, then provides search, status, assignee, priority, component, parent, and changed-since-last-pull filters. It also includes saved presets for QA testing, code review, status moves, and unassigned work.
