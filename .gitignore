@@ -1,6 +1,7 @@
 node_modules/
 modern-dashboard/.astro/
 modern-dashboard/dist/
+modern-dashboard/qa-artifacts/
 *.log
 localtunnel*.out.log
 localtunnel*.err.log

@@ -191,8 +191,15 @@ Generated data that does not belong in this template:
 - Release analytics band with assignee load, pull movement history, priority mix, and component concentration
 - Operations health center for data pull freshness, Pages deploy links, bridge auth, Actions history, and Slack workflow checks
 - Multi-board registry through `boards.json` for current and future release-board navigation
+- Accessibility and responsive QA harness for focus visibility, overflow checks, and screenshot review artifacts
 
 ## Version History
+
+### v1.10.13
+
+- Added the SPEC-10 accessibility and responsive QA pass.
+- Added visible focus treatment, a keyboard skip link, active preset semantics, ticket-table sort semantics, and current-board registry language.
+- Added `npm run qa:responsive` for Playwright screenshots, focus smoke checks, and mobile overflow checks.
 
 ### v1.10.12
 

@@ -34,6 +34,43 @@ a {
   color: inherit;
 }
 
+button,
+input,
+select,
+textarea,
+summary,
+a {
+  outline-offset: 3px;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+a:focus-visible {
+  outline: 3px solid rgba(29, 100, 216, 0.5);
+  box-shadow: 0 0 0 5px rgba(29, 100, 216, 0.14);
+}
+
+.skip-link {
+  position: absolute;
+  left: 16px;
+  top: 12px;
+  z-index: 20;
+  transform: translateY(-140%);
+  border-radius: 8px;
+  background: var(--text);
+  color: #ffffff;
+  font-weight: 850;
+  padding: 10px 12px;
+  text-decoration: none;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
 .dashboard-shell {
   display: grid;
   gap: 18px;
@@ -213,12 +250,28 @@ h3 {
   justify-content: space-between;
 }
 
+.board-status-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
 .board-status {
   border-radius: 999px;
   font-size: 0.74rem;
   font-weight: 900;
   padding: 5px 8px;
   text-transform: capitalize;
+}
+
+.current-board-pill {
+  border-radius: 999px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-size: 0.74rem;
+  font-weight: 900;
+  padding: 5px 8px;
 }
 
 .board-status.active {
@@ -729,6 +782,7 @@ h3 {
   display: grid;
   gap: 16px;
   padding: 18px;
+  scroll-margin-top: 18px;
 }
 
 .explorer-toolbar,
@@ -838,7 +892,9 @@ h3 {
 }
 
 .ticket-table-wrap {
+  max-width: 100%;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .ticket-table {
@@ -864,7 +920,7 @@ h3 {
 }
 
 .ticket-table tr {
-  cursor: pointer;
+  cursor: default;
 }
 
 .ticket-table tbody tr:hover,
@@ -1435,9 +1491,26 @@ h3 {
   .board-registry-heading,
   .registry-automation,
   .operations-heading,
-  .analytics-heading {
+  .analytics-heading,
+  .explorer-toolbar,
+  .detail-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .table-summary,
+  .pagination-bar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .table-summary label {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pagination-bar button {
+    flex: 1 1 120px;
   }
 
   .analytics-totals {
@@ -1457,5 +1530,16 @@ h3 {
   .workspace-progress {
     align-items: flex-start;
     flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

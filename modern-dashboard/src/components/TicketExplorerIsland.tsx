@@ -289,7 +289,12 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
       header: "Summary",
       accessorFn: (issue) => issue.summary || "",
       cell: ({ row }) => (
-        <button className="summary-button" type="button" onClick={() => setSelectedKey(row.original.key || "")}>
+        <button
+          className="summary-button"
+          type="button"
+          onClick={() => setSelectedKey(row.original.key || "")}
+          aria-label={`Open details for ${row.original.key || "ticket"}: ${row.original.summary || "Untitled ticket"}`}
+        >
           {row.original.summary || "Untitled ticket"}
         </button>
       )
@@ -336,7 +341,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
       cell: ({ row }) => (
         <div className="row-actions">
           <a href={row.original.url || "#"} target="_blank" rel="noreferrer">Jira</a>
-          <button type="button" onClick={() => setSelectedKey(row.original.key || "")}>Details</button>
+          <button type="button" onClick={() => setSelectedKey(row.original.key || "")} aria-label={`Show details for ${row.original.key || "ticket"}`}>Details</button>
         </div>
       )
     }
@@ -473,13 +478,14 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
                   {table.getHeaderGroups().map((headerGroup) => (
                     <tr key={headerGroup.id}>
                       {headerGroup.headers.map((header) => (
-                        <th key={header.id}>
+                        <th key={header.id} scope="col" aria-sort={header.isPlaceholder ? undefined : ariaSort(header.column.getIsSorted())}>
                           {header.isPlaceholder ? null : (
                             <button
                               type="button"
                               className="column-sort"
                               disabled={!header.column.getCanSort()}
                               onClick={header.column.getToggleSortingHandler()}
+                              aria-label={`Sort by ${String(header.column.columnDef.header || header.id)}`}
                             >
                               {flexRender(header.column.columnDef.header, header.getContext())}
                               <span>{sortLabel(header.column.getIsSorted())}</span>
@@ -495,7 +501,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
                     <tr
                       key={row.id}
                       className={row.original.key === selectedIssue?.key ? "selected-row" : ""}
-                      onClick={() => setSelectedKey(row.original.key || "")}
+                      aria-selected={row.original.key === selectedIssue?.key}
                     >
                       {row.getVisibleCells().map((cell) => (
                         <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
@@ -538,10 +544,17 @@ function BoardRegistryDirectory({ registry, registryError, currentVersion }: { r
         {boards.length ? boards.map((board) => {
           const isCurrent = board.release === currentVersion || board.fixVersion === currentVersion;
           return (
-            <article className={isCurrent ? "board-registry-card current" : "board-registry-card"} key={`${board.release}-${board.url}`}>
+            <article
+              className={isCurrent ? "board-registry-card current" : "board-registry-card"}
+              key={`${board.release}-${board.url}`}
+              aria-label={isCurrent ? `${board.release}, current board` : board.release}
+            >
               <div className="board-card-heading">
                 <h3>{board.release}</h3>
-                <span className={`board-status ${boardStatusTone(board.status)}`}>{board.status || "listed"}</span>
+                <div className="board-status-group">
+                  {isCurrent ? <span className="current-board-pill">Current</span> : null}
+                  <span className={`board-status ${boardStatusTone(board.status)}`}>{board.status || "listed"}</span>
+                </div>
               </div>
               <p>{board.notes}</p>
               <dl>
@@ -772,7 +785,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function PresetButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <button className={active ? "preset-button active" : "preset-button"} type="button" onClick={onClick}>
+    <button className={active ? "preset-button active" : "preset-button"} type="button" onClick={onClick} aria-pressed={active}>
       {label}
     </button>
   );
@@ -1525,6 +1538,18 @@ function sortLabel(value: false | "asc" | "desc") {
   }
 
   return "";
+}
+
+function ariaSort(value: false | "asc" | "desc") {
+  if (value === "asc") {
+    return "ascending";
+  }
+
+  if (value === "desc") {
+    return "descending";
+  }
+
+  return "none";
 }
 
 function createWorkspace(issue: Issue, storageKey: string | null): ChecklistWorkspaceState {

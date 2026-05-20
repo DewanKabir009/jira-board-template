@@ -32,6 +32,18 @@ npm run build
 
 The output in `dist/` is static and can be uploaded to GitHub Pages when the migration is ready to publish a `/modern/` preview.
 
+## Responsive QA
+
+SPEC-10 adds a repeatable Playwright smoke test for the modern preview. It checks representative focus states, root-level horizontal overflow, clipped controls, and saves desktop, tablet, and mobile screenshots.
+
+```powershell
+$env:QA_TARGET_URL = "https://dewankabir009.github.io/jira-board-v3001-122-0/modern/"
+$env:QA_SCREENSHOT_DIR = "qa-artifacts/modern-dashboard"
+npm run qa:responsive
+```
+
+Set `PLAYWRIGHT_MODULE_PATH` when Playwright is supplied by the Codex runtime or another shared toolchain. Set `QA_CHROME_PATH` when the browser binary should come from a local Chrome install.
+
 ## Ticket Explorer Island
 
 SPEC-05 adds a React island powered by TanStack Table. The island loads `dashboard-data.json`, then provides search, status, assignee, priority, component, parent, and changed-since-last-pull filters. It also includes saved presets for QA testing, code review, status moves, and unassigned work.
