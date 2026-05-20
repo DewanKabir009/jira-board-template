@@ -437,6 +437,128 @@ h3 {
   text-decoration: none;
 }
 
+.cutover-validation {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+
+.cutover-heading,
+.cutover-card-head,
+.cutover-links {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.cutover-heading {
+  justify-content: space-between;
+}
+
+.cutover-summary,
+.cutover-card-head span:last-child {
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 6px 10px;
+}
+
+.cutover-summary.good,
+.cutover-card.good .cutover-card-head span:last-child {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.cutover-summary.attention,
+.cutover-summary.warning,
+.cutover-card.attention .cutover-card-head span:last-child,
+.cutover-card.warning .cutover-card-head span:last-child {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.cutover-summary.danger,
+.cutover-card.danger .cutover-card-head span:last-child {
+  background: var(--rose-soft);
+  color: var(--rose);
+}
+
+.cutover-summary.neutral,
+.cutover-card.neutral .cutover-card-head span:last-child {
+  background: var(--surface-muted);
+  color: var(--muted);
+}
+
+.cutover-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cutover-card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-height: 202px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 12px;
+}
+
+.cutover-card.good {
+  border-color: rgba(5, 135, 100, 0.35);
+}
+
+.cutover-card.attention,
+.cutover-card.warning {
+  border-color: rgba(183, 121, 31, 0.38);
+}
+
+.cutover-card.danger {
+  border-color: rgba(180, 35, 72, 0.38);
+}
+
+.cutover-card h3 {
+  min-height: 2.7em;
+}
+
+.cutover-card p,
+.cutover-footnote {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.cutover-links {
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+.cutover-links a {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--blue);
+  font-size: 0.78rem;
+  font-weight: 850;
+  padding: 0 9px;
+  text-decoration: none;
+}
+
+.cutover-footnote {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  font-weight: 750;
+}
+
 .operations-health {
   display: grid;
   gap: 12px;
@@ -1535,6 +1657,7 @@ h3 {
 
   .board-registry-grid,
   .rollout-grid,
+  .cutover-grid,
   .ops-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1569,21 +1692,23 @@ h3 {
 
   .metric-grid,
   .status-lanes,
-  .ticket-list,
-  .board-registry-grid,
-  .rollout-grid,
-  .ops-grid,
-  .analytics-grid,
-  .explorer-filters {
+    .ticket-list,
+    .board-registry-grid,
+    .rollout-grid,
+    .cutover-grid,
+    .ops-grid,
+    .analytics-grid,
+    .explorer-filters {
     grid-template-columns: 1fr;
   }
 
-  .board-registry-heading,
-  .registry-automation,
-  .rollout-heading,
-  .operations-heading,
-  .analytics-heading,
-  .explorer-toolbar,
+    .board-registry-heading,
+    .registry-automation,
+    .rollout-heading,
+    .cutover-heading,
+    .operations-heading,
+    .analytics-heading,
+    .explorer-toolbar,
   .detail-heading {
     align-items: flex-start;
     flex-direction: column;

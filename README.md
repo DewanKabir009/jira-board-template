@@ -193,8 +193,15 @@ Generated data that does not belong in this template:
 - Multi-board registry through `boards.json` for current and future release-board navigation
 - Accessibility and responsive QA harness for focus visibility, overflow checks, and screenshot review artifacts
 - Rollout readiness and fallback plan for keeping the current board available during modern preview migration
+- Cutover readiness validation for assignee writes, checklist comments, Slack delivery, and final signoff evidence
 
 ## Version History
+
+### v1.10.15
+
+- Added the SPEC-12 cutover readiness validation panel.
+- Added evidence-required gates for assignee writes, checklist comments, Slack delivery, and final cutover signoff.
+- Documented the validation runbook so configured Cloudflare bridge status is not confused with mutation proof.
 
 ### v1.10.14
 

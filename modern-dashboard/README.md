@@ -48,6 +48,10 @@ Set `PLAYWRIGHT_MODULE_PATH` when Playwright is supplied by the Codex runtime or
 
 SPEC-11 keeps the generated root dashboard as the working QA surface until the modern preview clears parity checks for 122 and 123. The preview is published under `/modern/`, reads the same `dashboard-data.json`, and includes a rollout readiness section with links back to the current board and fallback runbook.
 
+## Cutover Validation
+
+SPEC-12 adds explicit cutover evidence gates to the modern preview. Read parity can be checked from the published data artifact, while assignee writes, checklist comments, and Slack delivery stay marked as evidence-required until a named test ticket proves the live workflow.
+
 ## Ticket Explorer Island
 
 SPEC-05 adds a React island powered by TanStack Table. The island loads `dashboard-data.json`, then provides search, status, assignee, priority, component, parent, and changed-since-last-pull filters. It also includes saved presets for QA testing, code review, status moves, and unassigned work.

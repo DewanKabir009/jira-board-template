@@ -264,6 +264,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   const changeSets = useMemo(() => createChangeSets(data), [data]);
   const options = useMemo(() => createFilterOptions(issues), [issues]);
   const operationsHealth = useMemo(() => buildOperationsHealth(data, loadError), [data, loadError]);
+  const cutoverValidation = useMemo(() => buildCutoverValidation(data, boardRegistry, loadError), [data, boardRegistry, loadError]);
   const analytics = useMemo(() => buildReleaseAnalytics(data, issues, changeSets), [data, issues, changeSets]);
 
   const filteredIssues = useMemo(() => {
@@ -411,6 +412,8 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
       <BoardRegistryDirectory registry={boardRegistry} registryError={registryError} currentVersion={data?.version} />
 
       <RolloutReadiness data={data} registry={boardRegistry} />
+
+      <CutoverValidationPanel validation={cutoverValidation} />
 
       <OperationsHealthCenter health={operationsHealth} />
 
@@ -645,6 +648,44 @@ function RolloutReadiness({ data, registry }: { data: DashboardData | null; regi
           </div>
         </article>
       </div>
+    </section>
+  );
+}
+
+function CutoverValidationPanel({ validation }: { validation: OperationsHealth }) {
+  return (
+    <section className="cutover-validation" aria-labelledby="cutover-heading">
+      <div className="cutover-heading">
+        <div>
+          <p className="eyebrow">Cutover validation</p>
+          <h2 id="cutover-heading">Evidence gates before promotion</h2>
+        </div>
+        <span className={`cutover-summary ${validation.summaryTone}`}>{validation.summary}</span>
+      </div>
+
+      <div className="cutover-grid">
+        {validation.items.map((item) => (
+          <article className={`cutover-card ${item.tone}`} key={item.title}>
+            <div className="cutover-card-head">
+              <span className={`health-dot ${item.tone}`} aria-hidden="true" />
+              <span>{item.status}</span>
+            </div>
+            <h3>{item.title}</h3>
+            <p>{item.detail}</p>
+            {item.links.length ? (
+              <div className="cutover-links">
+                {item.links.map((link) => (
+                  <a href={link.href} target="_blank" rel="noreferrer" key={`${item.title}-${link.label}`}>{link.label}</a>
+                ))}
+              </div>
+            ) : null}
+          </article>
+        ))}
+      </div>
+
+      <p className="cutover-footnote">
+        Write-path gates stay evidence-required until a named test ticket proves Jira readback, checklist comment posting, and Slack delivery.
+      </p>
     </section>
   );
 }
@@ -1320,6 +1361,109 @@ function currentBoardEntry(registry: BoardRegistry | null, currentVersion?: stri
   }
 
   return registry?.boards?.find((board) => board.release === currentVersion || board.fixVersion === currentVersion) || null;
+}
+
+function buildCutoverValidation(data: DashboardData | null, registry: BoardRegistry | null, loadError: string): OperationsHealth {
+  const board = currentBoardEntry(registry, data?.version);
+  const repo = data?.repositorySlug || board?.repositorySlug || "";
+  const boardUrl = data?.dashboardUrl || board?.url || "../";
+  const modernUrl = board?.modernUrl || "./";
+  const bridgeEndpoint = data?.assigneeDispatchEndpoint || "";
+  const commentEndpoint = checklistEndpoint(data);
+  const bridgeStatus = bridgeEndpoint ? bridgeStatusUrl(bridgeEndpoint) : "";
+  const commentStatus = commentEndpoint ? bridgeStatusUrl(commentEndpoint) : bridgeStatus;
+  const bridgeIsLocal = Boolean(bridgeEndpoint && isLocalBridgeEndpoint(bridgeEndpoint));
+  const commentIsLocal = Boolean(commentEndpoint && isLocalBridgeEndpoint(commentEndpoint));
+  const bridgeIsHosted = Boolean(bridgeEndpoint && isHostedBridgeEndpoint(bridgeEndpoint));
+  const runbookUrl = "https://dewankabir009.github.io/jira-board-v3001-122-0/modern-dashboard-specs/specs/cutover-readiness-validation.md";
+
+  const readGate: OperationsHealthItem = loadError ? {
+    title: "Read parity snapshot",
+    status: "Data blocked",
+    detail: loadError,
+    tone: "danger",
+    links: [{ label: "Current board", href: boardUrl }]
+  } : {
+    title: "Read parity snapshot",
+    status: data ? "Snapshot loaded" : "Waiting",
+    detail: data
+      ? `Modern preview is reading the same Jira snapshot for ${data.version || "this board"} as the current board.`
+      : "Waiting for dashboard-data.json before parity can be reviewed.",
+    tone: data ? "good" : "neutral",
+    links: [
+      { label: "Current board", href: boardUrl },
+      { label: "Modern preview", href: modernUrl },
+      ...(data?.dataArtifact?.fileName ? [{ label: "Data artifact", href: `../${data.dataArtifact.fileName}` }] : [])
+    ]
+  };
+
+  const assigneeGate: OperationsHealthItem = {
+    title: "Assignee write",
+    status: !data ? "Waiting" : bridgeIsLocal ? "Local endpoint" : !bridgeEndpoint ? "Bridge missing" : "Evidence required",
+    detail: !data
+      ? "Bridge configuration appears after the dashboard data loads."
+      : bridgeIsLocal
+        ? "This board still points at a laptop-local endpoint. Live cutover requires the hosted Cloudflare bridge."
+        : !bridgeEndpoint
+          ? "No assignee dispatch endpoint is present in dashboard-data.json."
+          : bridgeIsHosted
+            ? "Hosted Cloudflare route is configured. Complete this gate with a named test ticket, Jira assignee readback, and the matching Slack tag."
+            : "A non-local bridge is configured. Complete this gate with a named test ticket and Jira assignee readback.",
+    tone: !data ? "neutral" : bridgeIsLocal || !bridgeEndpoint ? "danger" : "attention",
+    links: [
+      ...(bridgeStatus ? [{ label: bridgeIsHosted ? "Cloudflare status" : "Bridge status", href: bridgeStatus }] : []),
+      ...(repo ? [{ label: "Assign workflow", href: workflowUrl(repo, "update-jira-assignee.yml") }] : []),
+      { label: "Current board", href: boardUrl }
+    ]
+  };
+
+  const checklistGate: OperationsHealthItem = {
+    title: "Checklist comment",
+    status: !data ? "Waiting" : commentIsLocal ? "Local endpoint" : !commentEndpoint ? "Route missing" : "Evidence required",
+    detail: !data
+      ? "Checklist comment route appears after the dashboard data loads."
+      : commentIsLocal
+        ? "Checklist comments still point at a laptop-local endpoint. Live cutover requires the hosted Cloudflare bridge."
+        : !commentEndpoint
+          ? "No checklist comment endpoint can be resolved for this board."
+          : "Post one checklist comment from a named test ticket, then confirm the Jira comment body and the dashboard state remain consistent.",
+    tone: !data ? "neutral" : commentIsLocal || !commentEndpoint ? "danger" : "attention",
+    links: [
+      ...(commentStatus ? [{ label: "Comment bridge", href: commentStatus }] : []),
+      { label: "Current board", href: boardUrl }
+    ]
+  };
+
+  const slackGate: OperationsHealthItem = {
+    title: "Slack delivery",
+    status: repo ? "Evidence required" : "Repository unknown",
+    detail: repo
+      ? "Confirm core-qa-dream-team receives the assignee-update message with the expected person tag, then confirm dashboard refresh notifications still land."
+      : "Repository metadata is required before Slack workflows can be reviewed.",
+    tone: repo ? "attention" : "neutral",
+    links: repo ? [
+      { label: "Assign workflow", href: workflowUrl(repo, "update-jira-assignee.yml") },
+      { label: "Notify workflow", href: workflowUrl(repo, "notify-dashboard-push.yml") }
+    ] : []
+  };
+
+  const signoffGate: OperationsHealthItem = {
+    title: "Final cutover signoff",
+    status: "Waiting on evidence",
+    detail: "Promote the modern board only after read parity, Jira writes, checklist comments, Slack notifications, and fallback notes are attached to the runbook.",
+    tone: "warning",
+    links: [{ label: "Validation runbook", href: runbookUrl }]
+  };
+
+  const items = [readGate, assigneeGate, checklistGate, slackGate, signoffGate];
+  const hasDanger = items.some((item) => item.tone === "danger");
+  const readyCount = items.filter((item) => item.tone === "good").length;
+
+  return {
+    summary: hasDanger ? "Fix blockers first" : `${readyCount}/${items.length} gates ready`,
+    summaryTone: hasDanger ? "danger" : readyCount === items.length ? "good" : "attention",
+    items
+  };
 }
 
 function buildOperationsHealth(data: DashboardData | null, loadError: string): OperationsHealth {
