@@ -202,7 +202,7 @@ Generated data that does not belong in this template:
 
 - Replaced native browser filters in the Astro preview with compact custom dropdown controls.
 - Added Jira assignee avatar fields to the data pull and avatar-aware assignee filtering in the preview.
-- Refreshed the dashboard color tokens with a GolfNow-inspired modern palette across fairway green, deep teal, cool sky, amber, rose, and violet accents.
+- Refreshed the dashboard color tokens with an energetic GolfNow-inspired palette across electric blue, fairway green, cool sky, bright lime, amber, rose, and violet accents.
 
 ### v1.10.15
 
