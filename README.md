@@ -190,8 +190,15 @@ Generated data that does not belong in this template:
 - Checklist workspace with editable QA cases, evidence, concerns, preview, and Cloudflare bridge submission
 - Release analytics band with assignee load, pull movement history, priority mix, and component concentration
 - Operations health center for data pull freshness, Pages deploy links, bridge auth, Actions history, and Slack workflow checks
+- Multi-board registry through `boards.json` for current and future release-board navigation
 
 ## Version History
+
+### v1.10.12
+
+- Added the SPEC-09 multi-board registry.
+- Added `boards.json` with 122 and 123 as the first release-board entries.
+- Added a data-driven board directory and board spin-up hook notes to the Astro preview.
 
 ### v1.10.11
 

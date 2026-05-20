@@ -75,6 +75,31 @@ type DashboardData = {
   issues?: Issue[];
 };
 
+type BoardRegistryEntry = {
+  release: string;
+  fixVersion?: string;
+  url: string;
+  modernUrl?: string;
+  repositorySlug?: string;
+  status: "active" | "current" | "planned" | "archived" | string;
+  owner: string;
+  notes: string;
+};
+
+type BoardRegistryAutomation = {
+  source?: string;
+  hook?: string;
+  provisioner?: string;
+};
+
+type BoardRegistry = {
+  schemaVersion?: string;
+  updatedAt?: string;
+  owner?: string;
+  boards?: BoardRegistryEntry[];
+  automation?: BoardRegistryAutomation;
+};
+
 type ChangeSets = {
   added: Set<string>;
   updated: Set<string>;
@@ -180,9 +205,11 @@ const EMPTY_FILTERS: Filters = {
   changed: ""
 };
 
-export default function TicketExplorerIsland({ dataUrl }: { dataUrl: string }) {
+export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { dataUrl: string; boardRegistryUrl: string }) {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [boardRegistry, setBoardRegistry] = useState<BoardRegistry | null>(null);
   const [loadError, setLoadError] = useState("");
+  const [registryError, setRegistryError] = useState("");
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [activePreset, setActivePreset] = useState<PresetKey>("all");
   const [selectedKey, setSelectedKey] = useState("");
@@ -210,6 +237,28 @@ export default function TicketExplorerIsland({ dataUrl }: { dataUrl: string }) {
       cancelled = true;
     };
   }, [dataUrl]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchBoardRegistry(boardRegistryUrl)
+      .then((payload) => {
+        if (!cancelled) {
+          setBoardRegistry(payload);
+          setRegistryError("");
+        }
+      })
+      .catch((error: Error) => {
+        if (!cancelled) {
+          setBoardRegistry(null);
+          setRegistryError(error.message);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [boardRegistryUrl]);
 
   const issues = useMemo(() => data?.issues ?? [], [data]);
   const changeSets = useMemo(() => createChangeSets(data), [data]);
@@ -354,6 +403,8 @@ export default function TicketExplorerIsland({ dataUrl }: { dataUrl: string }) {
         </dl>
       </section>
 
+      <BoardRegistryDirectory registry={boardRegistry} registryError={registryError} currentVersion={data?.version} />
+
       <OperationsHealthCenter health={operationsHealth} />
 
       <ReleaseAnalyticsBand analytics={analytics} />
@@ -465,6 +516,64 @@ export default function TicketExplorerIsland({ dataUrl }: { dataUrl: string }) {
         </div>
       </section>
     </main>
+  );
+}
+
+function BoardRegistryDirectory({ registry, registryError, currentVersion }: { registry: BoardRegistry | null; registryError: string; currentVersion?: string }) {
+  const boards = registry?.boards || [];
+
+  return (
+    <section className="board-registry" aria-labelledby="board-registry-heading">
+      <div className="board-registry-heading">
+        <div>
+          <p className="eyebrow">Board registry</p>
+          <h2 id="board-registry-heading">Release board directory</h2>
+        </div>
+        <span>{registry?.updatedAt ? `Updated ${registry.updatedAt}` : "Registry loading"}</span>
+      </div>
+
+      {registryError ? <p className="registry-error">{registryError}</p> : null}
+
+      <div className="board-registry-grid">
+        {boards.length ? boards.map((board) => {
+          const isCurrent = board.release === currentVersion || board.fixVersion === currentVersion;
+          return (
+            <article className={isCurrent ? "board-registry-card current" : "board-registry-card"} key={`${board.release}-${board.url}`}>
+              <div className="board-card-heading">
+                <h3>{board.release}</h3>
+                <span className={`board-status ${boardStatusTone(board.status)}`}>{board.status || "listed"}</span>
+              </div>
+              <p>{board.notes}</p>
+              <dl>
+                <div><dt>Owner</dt><dd>{board.owner || registry?.owner || "Unassigned"}</dd></div>
+                <div><dt>Repo</dt><dd>{board.repositorySlug || "Not configured"}</dd></div>
+              </dl>
+              <div className="board-card-links">
+                <a href={board.url} target="_blank" rel="noreferrer">Live board</a>
+                {board.modernUrl ? <a href={board.modernUrl} target="_blank" rel="noreferrer">Modern preview</a> : null}
+                {board.repositorySlug ? <a href={`https://github.com/${board.repositorySlug}`} target="_blank" rel="noreferrer">Repo</a> : null}
+              </div>
+            </article>
+          );
+        }) : (
+          <article className="board-registry-card placeholder">
+            <h3>No registry entries loaded</h3>
+            <p>Publish boards.json with the release, URL, status, owner, and notes for each board.</p>
+          </article>
+        )}
+      </div>
+
+      <div className="registry-automation">
+        <div>
+          <h3>Spin-up hook</h3>
+          <p>{registry?.automation?.hook || "New board creation should append to boards.json before the first Pages publish."}</p>
+        </div>
+        <div className="board-card-links">
+          {registry?.automation?.source ? <a href={registry.automation.source} target="_blank" rel="noreferrer">Registry source</a> : null}
+          {registry?.automation?.provisioner ? <a href={registry.automation.provisioner} target="_blank" rel="noreferrer">Provisioner</a> : null}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -944,6 +1053,34 @@ async function fetchDashboardData(requestedUrl: string): Promise<DashboardData> 
   throw new Error(lastError || "Unable to load dashboard-data.json.");
 }
 
+async function fetchBoardRegistry(requestedUrl: string): Promise<BoardRegistry> {
+  const candidates = [...new Set([requestedUrl, "../boards.json", "boards.json"])]
+    .filter(Boolean)
+    .map((value) => new URL(value, window.location.href).toString());
+
+  let lastError = "";
+
+  for (const candidate of candidates) {
+    try {
+      const response = await fetch(candidate, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} from ${candidate}`);
+      }
+
+      const registry = await response.json();
+      if (!Array.isArray(registry.boards)) {
+        throw new Error(`boards array missing from ${candidate}`);
+      }
+
+      return registry;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  throw new Error(lastError || "Unable to load boards.json.");
+}
+
 function createFilterOptions(issues: Issue[]) {
   return {
     statuses: uniqueValues(issues.map((issue) => issue.status)),
@@ -1086,6 +1223,23 @@ function changeLabels(key: string, changeSets: ChangeSets) {
 function uniqueValues(values: Array<string | undefined>) {
   return [...new Set(values.filter(Boolean) as string[])]
     .sort((left, right) => left.localeCompare(right));
+}
+
+function boardStatusTone(status: string) {
+  const normalized = status.toLowerCase();
+  if (normalized === "active" || normalized === "current") {
+    return "active";
+  }
+
+  if (normalized === "planned") {
+    return "planned";
+  }
+
+  if (normalized === "archived") {
+    return "archived";
+  }
+
+  return "listed";
 }
 
 function buildOperationsHealth(data: DashboardData | null, loadError: string): OperationsHealth {

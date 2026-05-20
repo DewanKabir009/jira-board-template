@@ -160,6 +160,142 @@ h3 {
   font-weight: 850;
 }
 
+.board-registry {
+  display: grid;
+  gap: 12px;
+}
+
+.board-registry-heading,
+.board-card-heading,
+.board-card-links,
+.registry-automation {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.board-registry-heading,
+.registry-automation {
+  justify-content: space-between;
+}
+
+.board-registry-heading span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.board-registry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.board-registry-card,
+.registry-automation {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 14px;
+}
+
+.board-registry-card {
+  display: grid;
+  gap: 12px;
+}
+
+.board-registry-card.current {
+  border-color: var(--blue);
+}
+
+.board-card-heading {
+  justify-content: space-between;
+}
+
+.board-status {
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 900;
+  padding: 5px 8px;
+  text-transform: capitalize;
+}
+
+.board-status.active {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.board-status.planned {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.board-status.archived,
+.board-status.listed {
+  background: var(--surface-muted);
+  color: var(--muted);
+}
+
+.board-registry-card p,
+.registry-automation p,
+.registry-error {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.board-registry-card dl {
+  display: grid;
+  grid-template-columns: minmax(0, 0.45fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.board-registry-card dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.board-registry-card dd {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.board-card-links {
+  flex-wrap: wrap;
+}
+
+.board-card-links a {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--blue);
+  font-size: 0.8rem;
+  font-weight: 850;
+  padding: 0 10px;
+  text-decoration: none;
+}
+
+.registry-automation {
+  align-items: flex-start;
+}
+
+.registry-error {
+  border: 1px solid var(--amber);
+  border-radius: 8px;
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-weight: 850;
+  padding: 10px;
+}
+
 .operations-health {
   display: grid;
   gap: 12px;
@@ -1253,6 +1389,7 @@ h3 {
     grid-template-columns: 1fr;
   }
 
+  .board-registry-grid,
   .ops-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1288,12 +1425,15 @@ h3 {
   .metric-grid,
   .status-lanes,
   .ticket-list,
+  .board-registry-grid,
   .ops-grid,
   .analytics-grid,
   .explorer-filters {
     grid-template-columns: 1fr;
   }
 
+  .board-registry-heading,
+  .registry-automation,
   .operations-heading,
   .analytics-heading {
     align-items: flex-start;

@@ -2,13 +2,14 @@
 interface Props {
   title: string;
   dataUrl: string;
+  boardRegistryUrl: string;
 }
 
-const { title, dataUrl } = Astro.props;
+const { title, dataUrl, boardRegistryUrl } = Astro.props;
 ---
 
 <!doctype html>
-<html lang="en" data-dashboard-data-url={dataUrl}>
+<html lang="en" data-dashboard-data-url={dataUrl} data-board-registry-url={boardRegistryUrl}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
