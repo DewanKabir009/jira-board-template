@@ -134,6 +134,15 @@ type FilterOptionSet = {
 
 type PresetKey = "all" | "qa" | "review" | "moves" | "unassigned";
 
+type ExplorerView = "cards" | "table";
+
+type TicketGroup = {
+  issue: Issue;
+  subtasks: Issue[];
+  visibleSubtasks: Issue[];
+  matchedBySubtask: boolean;
+};
+
 type WorkspaceStatus = "draft" | "ready" | "submitting" | "submitted" | "failed";
 
 type ChecklistItem = {
@@ -227,6 +236,8 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   const [registryError, setRegistryError] = useState("");
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [activePreset, setActivePreset] = useState<PresetKey>("all");
+  const [explorerView, setExplorerView] = useState<ExplorerView>("cards");
+  const [openSubtaskParents, setOpenSubtaskParents] = useState<Set<string>>(new Set());
   const [selectedKey, setSelectedKey] = useState("");
   const [sorting, setSorting] = useState<SortingState>([{ id: "updatedDisplay", desc: true }]);
   const [pageIndex, setPageIndex] = useState(0);
@@ -285,6 +296,12 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   const filteredIssues = useMemo(() => {
     return issues.filter((issue) => matchesFilters(issue, filters, changeSets, activePreset));
   }, [issues, filters, changeSets, activePreset]);
+  const ticketGroups = useMemo(() => {
+    return groupIssuesForCards(issues, filters, changeSets, activePreset);
+  }, [issues, filters, changeSets, activePreset]);
+  const visibleSubtaskCount = useMemo(() => {
+    return ticketGroups.reduce((total, group) => total + group.visibleSubtasks.length, 0);
+  }, [ticketGroups]);
 
   const columns = useMemo<ColumnDef<Issue>[]>(() => [
     {
@@ -373,14 +390,19 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   });
 
   const sortedRows = table.getRowModel().rows;
-  const pageCount = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+  const tablePageCount = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+  const cardPageCount = Math.max(1, Math.ceil(ticketGroups.length / pageSize));
+  const pageCount = explorerView === "cards" ? cardPageCount : tablePageCount;
   const safePageIndex = Math.min(pageIndex, pageCount - 1);
   const visibleRows = sortedRows.slice(safePageIndex * pageSize, safePageIndex * pageSize + pageSize);
-  const selectedIssue = issues.find((issue) => issue.key === selectedKey) || filteredIssues[0] || issues[0];
+  const visibleTicketGroups = ticketGroups.slice(safePageIndex * pageSize, safePageIndex * pageSize + pageSize);
+  const selectedIssue = issues.find((issue) => issue.key === selectedKey)
+    || (explorerView === "cards" ? ticketGroups[0]?.issue : filteredIssues[0])
+    || issues[0];
 
   useEffect(() => {
     setPageIndex(0);
-  }, [filters, pageSize]);
+  }, [filters, pageSize, explorerView]);
 
   useEffect(() => {
     if (selectedIssue?.key && selectedIssue.key !== selectedKey) {
@@ -396,6 +418,18 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   function applyPreset(preset: PresetKey) {
     setActivePreset(preset);
     setFilters(presetFilters(preset));
+  }
+
+  function toggleSubtasks(parentKey: string) {
+    setOpenSubtaskParents((current) => {
+      const next = new Set(current);
+      if (next.has(parentKey)) {
+        next.delete(parentKey);
+      } else {
+        next.add(parentKey);
+      }
+      return next;
+    });
   }
 
   return (
@@ -438,14 +472,17 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
         <div className="explorer-toolbar">
           <div>
             <p className="eyebrow">Ticket explorer island</p>
-            <h2 id="explorer-heading">Dense scan view</h2>
+            <h2 id="explorer-heading">Ticket board</h2>
           </div>
-          <div className="preset-group" aria-label="Saved views">
-            <PresetButton label="All" active={activePreset === "all"} onClick={() => applyPreset("all")} />
-            <PresetButton label="QA testing" active={activePreset === "qa"} onClick={() => applyPreset("qa")} />
-            <PresetButton label="Code review" active={activePreset === "review"} onClick={() => applyPreset("review")} />
-            <PresetButton label="Status moves" active={activePreset === "moves"} onClick={() => applyPreset("moves")} />
-            <PresetButton label="Unassigned" active={activePreset === "unassigned"} onClick={() => applyPreset("unassigned")} />
+          <div className="explorer-toolbar-actions">
+            <ViewToggle value={explorerView} onChange={setExplorerView} />
+            <div className="preset-group" aria-label="Saved views">
+              <PresetButton label="All" active={activePreset === "all"} onClick={() => applyPreset("all")} />
+              <PresetButton label="QA testing" active={activePreset === "qa"} onClick={() => applyPreset("qa")} />
+              <PresetButton label="Code review" active={activePreset === "review"} onClick={() => applyPreset("review")} />
+              <PresetButton label="Status moves" active={activePreset === "moves"} onClick={() => applyPreset("moves")} />
+              <PresetButton label="Unassigned" active={activePreset === "unassigned"} onClick={() => applyPreset("unassigned")} />
+            </div>
           </div>
         </div>
 
@@ -486,9 +523,13 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
         {loadError ? <p className="load-error">{loadError}</p> : null}
 
         <div className="explorer-body">
-          <div className="table-card">
+          <div className={explorerView === "cards" ? "table-card ticket-board-card" : "table-card"}>
             <div className="table-summary">
-              <span>{filteredIssues.length} matching tickets</span>
+              <span>
+                {explorerView === "cards"
+                  ? `${ticketGroups.length} main tickets / ${visibleSubtaskCount} subtasks`
+                  : `${filteredIssues.length} matching tickets`}
+              </span>
               <SelectFilter
                 label="Rows"
                 value={String(pageSize)}
@@ -497,45 +538,56 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
                 onChange={(value) => setPageSize(Number(value))}
               />
             </div>
-            <div className="ticket-table-wrap">
-              <table className="ticket-table">
-                <thead>
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
-                        <th key={header.id} scope="col" aria-sort={header.isPlaceholder ? undefined : ariaSort(header.column.getIsSorted())}>
-                          {header.isPlaceholder ? null : (
-                            <button
-                              type="button"
-                              className="column-sort"
-                              disabled={!header.column.getCanSort()}
-                              onClick={header.column.getToggleSortingHandler()}
-                              aria-label={`Sort by ${String(header.column.columnDef.header || header.id)}`}
-                            >
-                              {flexRender(header.column.columnDef.header, header.getContext())}
-                              <span>{sortLabel(header.column.getIsSorted())}</span>
-                            </button>
-                          )}
-                        </th>
-                      ))}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody>
-                  {visibleRows.map((row) => (
-                    <tr
-                      key={row.id}
-                      className={row.original.key === selectedIssue?.key ? "selected-row" : ""}
-                      aria-selected={row.original.key === selectedIssue?.key}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {explorerView === "cards" ? (
+              <TicketCardView
+                groups={visibleTicketGroups}
+                selectedKey={selectedIssue?.key || ""}
+                changeSets={changeSets}
+                openSubtaskParents={openSubtaskParents}
+                onSelectTicket={(key) => setSelectedKey(key)}
+                onToggleSubtasks={toggleSubtasks}
+              />
+            ) : (
+              <div className="ticket-table-wrap">
+                <table className="ticket-table">
+                  <thead>
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header) => (
+                          <th key={header.id} scope="col" aria-sort={header.isPlaceholder ? undefined : ariaSort(header.column.getIsSorted())}>
+                            {header.isPlaceholder ? null : (
+                              <button
+                                type="button"
+                                className="column-sort"
+                                disabled={!header.column.getCanSort()}
+                                onClick={header.column.getToggleSortingHandler()}
+                                aria-label={`Sort by ${String(header.column.columnDef.header || header.id)}`}
+                              >
+                                {flexRender(header.column.columnDef.header, header.getContext())}
+                                <span>{sortLabel(header.column.getIsSorted())}</span>
+                              </button>
+                            )}
+                          </th>
+                        ))}
+                      </tr>
+                    ))}
+                  </thead>
+                  <tbody>
+                    {visibleRows.map((row) => (
+                      <tr
+                        key={row.id}
+                        className={row.original.key === selectedIssue?.key ? "selected-row" : ""}
+                        aria-selected={row.original.key === selectedIssue?.key}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <div className="pagination-bar">
               <button type="button" disabled={safePageIndex === 0} onClick={() => setPageIndex((value) => Math.max(0, value - 1))}>Previous</button>
               <span>Page {safePageIndex + 1} of {pageCount}</span>
@@ -547,6 +599,169 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
         </div>
       </section>
     </main>
+  );
+}
+
+function ViewToggle({ value, onChange }: { value: ExplorerView; onChange: (value: ExplorerView) => void }) {
+  return (
+    <div className="view-toggle" aria-label="View">
+      <span>View</span>
+      <div className="view-toggle-buttons">
+        <button
+          type="button"
+          className={value === "cards" ? "view-toggle-button active" : "view-toggle-button"}
+          aria-pressed={value === "cards"}
+          onClick={() => onChange("cards")}
+        >
+          Cards
+        </button>
+        <button
+          type="button"
+          className={value === "table" ? "view-toggle-button active" : "view-toggle-button"}
+          aria-pressed={value === "table"}
+          onClick={() => onChange("table")}
+        >
+          Table
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TicketCardView({
+  groups,
+  selectedKey,
+  changeSets,
+  openSubtaskParents,
+  onSelectTicket,
+  onToggleSubtasks
+}: {
+  groups: TicketGroup[];
+  selectedKey: string;
+  changeSets: ChangeSets;
+  openSubtaskParents: Set<string>;
+  onSelectTicket: (key: string) => void;
+  onToggleSubtasks: (key: string) => void;
+}) {
+  if (!groups.length) {
+    return (
+      <div className="ticket-card-board empty">
+        <p>No matching parent tickets.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ticket-card-board" aria-label="Grouped ticket cards">
+      {groups.map((group, index) => {
+        const issue = group.issue;
+        const parentId = issue.key || `ticket-${index}`;
+        const isOpen = openSubtaskParents.has(parentId);
+        const subtaskCount = group.visibleSubtasks.length;
+        const changes = changeLabels(issue.key || "", changeSets);
+
+        return (
+          <article
+            className={selectedKey === issue.key ? "grouped-ticket-card selected" : "grouped-ticket-card"}
+            key={parentId}
+          >
+            <div className="grouped-ticket-topline">
+              <a className="table-ticket-key" href={issue.url || "#"} target="_blank" rel="noreferrer">
+                {issue.key || "Ticket"}
+              </a>
+              <span className="priority-pill">{issue.priority || "None"}</span>
+            </div>
+
+            <button
+              className="summary-button ticket-card-summary"
+              type="button"
+              onClick={() => onSelectTicket(issue.key || "")}
+              aria-label={`Open details for ${issue.key || "ticket"}: ${issue.summary || "Untitled ticket"}`}
+            >
+              {issue.summary || "Untitled ticket"}
+            </button>
+
+            <dl className="ticket-card-meta">
+              <div>
+                <dt>Status</dt>
+                <dd><span className="status-pill">{issue.status || "None"}</span></dd>
+              </div>
+              <div>
+                <dt>Assignee</dt>
+                <dd>{issue.assignee || "Unassigned"}</dd>
+              </div>
+              <div>
+                <dt>Updated</dt>
+                <dd>{issue.updatedDisplay || "Unknown"}</dd>
+              </div>
+              <div>
+                <dt>Components</dt>
+                <dd>{formatComponents(issue.components)}</dd>
+              </div>
+            </dl>
+
+            {changes.length ? (
+              <div className="change-tags card-change-tags" aria-label="Ticket changes">
+                {changes.map((label) => <span key={label}>{label}</span>)}
+              </div>
+            ) : null}
+
+            <div className="grouped-ticket-actions">
+              <div className="row-actions">
+                <a href={issue.url || "#"} target="_blank" rel="noreferrer">Jira</a>
+                <button type="button" onClick={() => onSelectTicket(issue.key || "")}>Details</button>
+              </div>
+              <button
+                type="button"
+                className="subtask-toggle"
+                disabled={!subtaskCount}
+                aria-expanded={isOpen}
+                onClick={() => onToggleSubtasks(parentId)}
+              >
+                {isOpen ? "Hide" : "Show"} {formatSubtaskCount(subtaskCount, group.subtasks.length)}
+              </button>
+            </div>
+
+            {group.matchedBySubtask ? <span className="subtask-match-note">Matched by subtask</span> : null}
+
+            {isOpen && subtaskCount ? (
+              <div className="subtask-list" aria-label={`Subtasks for ${issue.key || "ticket"}`}>
+                {group.visibleSubtasks.map((subtask) => (
+                  <div
+                    className={selectedKey === subtask.key ? "subtask-row selected" : "subtask-row"}
+                    key={subtask.key || `${parentId}-${subtask.summary}`}
+                  >
+                    <div className="subtask-main">
+                      <a className="table-ticket-key" href={subtask.url || "#"} target="_blank" rel="noreferrer">
+                        {subtask.key || "Subtask"}
+                      </a>
+                      <button
+                        className="summary-button subtask-summary"
+                        type="button"
+                        onClick={() => onSelectTicket(subtask.key || "")}
+                        aria-label={`Open details for ${subtask.key || "subtask"}: ${subtask.summary || "Untitled subtask"}`}
+                      >
+                        {subtask.summary || "Untitled subtask"}
+                      </button>
+                    </div>
+                    <div className="subtask-meta">
+                      <span className="status-pill">{subtask.status || "None"}</span>
+                      <span>{subtask.assignee || "Unassigned"}</span>
+                      <span>{subtask.priority || "None"}</span>
+                      <span>{formatComponents(subtask.components)}</span>
+                    </div>
+                    <div className="row-actions subtask-actions">
+                      <a href={subtask.url || "#"} target="_blank" rel="noreferrer">Jira</a>
+                      <button type="button" onClick={() => onSelectTicket(subtask.key || "")}>Details</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </article>
+        );
+      })}
+    </div>
   );
 }
 
@@ -1372,6 +1587,84 @@ function matchesFilters(issue: Issue, filters: Filters, changeSets: ChangeSets, 
     && matchesActivePreset(issue, activePreset, changeSets);
 }
 
+function groupIssuesForCards(issues: Issue[], filters: Filters, changeSets: ChangeSets, activePreset: PresetKey): TicketGroup[] {
+  const mainIssues: Issue[] = [];
+  const subtasksByParent = new Map<string, Issue[]>();
+  const orphanSubtasks: Issue[] = [];
+
+  for (const issue of issues) {
+    if (!issue.isSubtask) {
+      mainIssues.push(issue);
+      continue;
+    }
+
+    const key = parentKey(issue);
+    if (!key) {
+      orphanSubtasks.push(issue);
+      continue;
+    }
+
+    const parentSubtasks = subtasksByParent.get(key) || [];
+    parentSubtasks.push(issue);
+    subtasksByParent.set(key, parentSubtasks);
+  }
+
+  const grouped: TicketGroup[] = [];
+  const groupedParents = new Set<string>();
+
+  for (const issue of mainIssues) {
+    const issueKey = issue.key || "";
+    const subtasks = issueKey ? (subtasksByParent.get(issueKey) || []) : [];
+    const mainMatches = matchesFilters(issue, filters, changeSets, activePreset);
+    const matchingSubtasks = subtasks.filter((subtask) => matchesFilters(subtask, filters, changeSets, activePreset));
+
+    if (!mainMatches && matchingSubtasks.length === 0) {
+      continue;
+    }
+
+    grouped.push({
+      issue,
+      subtasks,
+      visibleSubtasks: mainMatches && filters.parent !== "subtasks" ? subtasks : matchingSubtasks,
+      matchedBySubtask: !mainMatches && matchingSubtasks.length > 0
+    });
+
+    if (issueKey) {
+      groupedParents.add(issueKey);
+    }
+  }
+
+  for (const [parent, subtasks] of subtasksByParent.entries()) {
+    if (groupedParents.has(parent)) {
+      continue;
+    }
+
+    for (const subtask of subtasks) {
+      if (matchesFilters(subtask, filters, changeSets, activePreset)) {
+        grouped.push({
+          issue: subtask,
+          subtasks: [],
+          visibleSubtasks: [],
+          matchedBySubtask: true
+        });
+      }
+    }
+  }
+
+  for (const subtask of orphanSubtasks) {
+    if (matchesFilters(subtask, filters, changeSets, activePreset)) {
+      grouped.push({
+        issue: subtask,
+        subtasks: [],
+        visibleSubtasks: [],
+        matchedBySubtask: true
+      });
+    }
+  }
+
+  return grouped;
+}
+
 function matchesActivePreset(issue: Issue, activePreset: PresetKey, changeSets: ChangeSets) {
   if (activePreset === "qa") {
     return (issue.status || "").toLowerCase().includes("qa");
@@ -1857,6 +2150,19 @@ function formatComponents(components?: string[]) {
   return components && components.length > 0 ? components.join(", ") : "None";
 }
 
+function formatSubtaskCount(visible: number, total: number) {
+  if (!total) {
+    return "subtasks";
+  }
+
+  const noun = total === 1 ? "subtask" : "subtasks";
+  if (visible === total) {
+    return `${total} ${noun}`;
+  }
+
+  return `${visible} of ${total} ${noun}`;
+}
+
 function parentLabel(issue: Issue) {
   if (!issue.parent) {
     return "";
@@ -1867,6 +2173,18 @@ function parentLabel(issue: Issue) {
   }
 
   return issue.parent.key || issue.parent.summary || "";
+}
+
+function parentKey(issue: Issue) {
+  if (!issue.parent) {
+    return "";
+  }
+
+  if (typeof issue.parent === "string") {
+    return issue.parent;
+  }
+
+  return issue.parent.key || "";
 }
 
 function descriptionPreview(description?: string) {
