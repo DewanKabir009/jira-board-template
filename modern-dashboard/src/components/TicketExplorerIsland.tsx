@@ -410,6 +410,8 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
 
       <BoardRegistryDirectory registry={boardRegistry} registryError={registryError} currentVersion={data?.version} />
 
+      <RolloutReadiness data={data} registry={boardRegistry} />
+
       <OperationsHealthCenter health={operationsHealth} />
 
       <ReleaseAnalyticsBand analytics={analytics} />
@@ -585,6 +587,63 @@ function BoardRegistryDirectory({ registry, registryError, currentVersion }: { r
           {registry?.automation?.source ? <a href={registry.automation.source} target="_blank" rel="noreferrer">Registry source</a> : null}
           {registry?.automation?.provisioner ? <a href={registry.automation.provisioner} target="_blank" rel="noreferrer">Provisioner</a> : null}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function RolloutReadiness({ data, registry }: { data: DashboardData | null; registry: BoardRegistry | null }) {
+  const board = currentBoardEntry(registry, data?.version);
+  const boardUrl = data?.dashboardUrl || board?.url || "../";
+  const modernUrl = board?.modernUrl || "./";
+  const repoSlug = data?.repositorySlug || board?.repositorySlug || "";
+  const repoUrl = repoSlug ? `https://github.com/${repoSlug}` : "";
+  const specUrl = "https://dewankabir009.github.io/jira-board-v3001-122-0/modern-dashboard-specs/specs/rollout-fallback-plan.md";
+
+  return (
+    <section className="rollout-readiness" aria-labelledby="rollout-heading">
+      <div className="rollout-heading">
+        <div>
+          <p className="eyebrow">Rollout readiness</p>
+          <h2 id="rollout-heading">Parallel preview with fallback</h2>
+        </div>
+        <span>Legacy board stays primary</span>
+      </div>
+
+      <div className="rollout-grid">
+        <article className="rollout-card good">
+          <h3>Current board remains live</h3>
+          <p>The generated static board is still the working QA surface while the modern preview proves parity.</p>
+          <div className="rollout-links">
+            <a href={boardUrl} target="_blank" rel="noreferrer">Current board</a>
+            {repoUrl ? <a href={repoUrl} target="_blank" rel="noreferrer">Repo</a> : null}
+          </div>
+        </article>
+
+        <article className="rollout-card attention">
+          <h3>Modern preview runs beside it</h3>
+          <p>This preview reads the same dashboard-data.json snapshot and stays isolated under the modern path.</p>
+          <div className="rollout-links">
+            <a href={modernUrl} target="_blank" rel="noreferrer">Modern preview</a>
+          </div>
+        </article>
+
+        <article className="rollout-card">
+          <h3>Cutover gates</h3>
+          <ul className="rollout-checklist">
+            <li>Read parity checked on 122 and 123.</li>
+            <li>Cloudflare Jira write paths verified.</li>
+            <li>Checklist comments and Slack notifications verified.</li>
+          </ul>
+        </article>
+
+        <article className="rollout-card">
+          <h3>Fallback path</h3>
+          <p>Keep the root static board published. If parity breaks, stop promoting the modern path and republish the generator output.</p>
+          <div className="rollout-links">
+            <a href={specUrl} target="_blank" rel="noreferrer">Runbook</a>
+          </div>
+        </article>
       </div>
     </section>
   );
@@ -1253,6 +1312,14 @@ function boardStatusTone(status: string) {
   }
 
   return "listed";
+}
+
+function currentBoardEntry(registry: BoardRegistry | null, currentVersion?: string) {
+  if (!currentVersion) {
+    return registry?.boards?.[0] || null;
+  }
+
+  return registry?.boards?.find((board) => board.release === currentVersion || board.fixVersion === currentVersion) || null;
 }
 
 function buildOperationsHealth(data: DashboardData | null, loadError: string): OperationsHealth {

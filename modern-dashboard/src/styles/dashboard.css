@@ -349,6 +349,94 @@ h3 {
   padding: 10px;
 }
 
+.rollout-readiness {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+
+.rollout-heading,
+.rollout-links {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.rollout-heading {
+  justify-content: space-between;
+}
+
+.rollout-heading > span {
+  border-radius: 999px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 6px 10px;
+}
+
+.rollout-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.rollout-card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-height: 176px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 12px;
+}
+
+.rollout-card.good {
+  border-color: rgba(5, 135, 100, 0.35);
+}
+
+.rollout-card.attention {
+  border-color: rgba(183, 121, 31, 0.38);
+}
+
+.rollout-card p,
+.rollout-checklist {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.rollout-checklist {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.rollout-links {
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+.rollout-links a {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--blue);
+  font-size: 0.78rem;
+  font-weight: 850;
+  padding: 0 9px;
+  text-decoration: none;
+}
+
 .operations-health {
   display: grid;
   gap: 12px;
@@ -1446,6 +1534,7 @@ h3 {
   }
 
   .board-registry-grid,
+  .rollout-grid,
   .ops-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1482,6 +1571,7 @@ h3 {
   .status-lanes,
   .ticket-list,
   .board-registry-grid,
+  .rollout-grid,
   .ops-grid,
   .analytics-grid,
   .explorer-filters {
@@ -1490,6 +1580,7 @@ h3 {
 
   .board-registry-heading,
   .registry-automation,
+  .rollout-heading,
   .operations-heading,
   .analytics-heading,
   .explorer-toolbar,

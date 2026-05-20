@@ -44,6 +44,10 @@ npm run qa:responsive
 
 Set `PLAYWRIGHT_MODULE_PATH` when Playwright is supplied by the Codex runtime or another shared toolchain. Set `QA_CHROME_PATH` when the browser binary should come from a local Chrome install.
 
+## Rollout Guardrails
+
+SPEC-11 keeps the generated root dashboard as the working QA surface until the modern preview clears parity checks for 122 and 123. The preview is published under `/modern/`, reads the same `dashboard-data.json`, and includes a rollout readiness section with links back to the current board and fallback runbook.
+
 ## Ticket Explorer Island
 
 SPEC-05 adds a React island powered by TanStack Table. The island loads `dashboard-data.json`, then provides search, status, assignee, priority, component, parent, and changed-since-last-pull filters. It also includes saved presets for QA testing, code review, status moves, and unassigned work.

@@ -192,8 +192,15 @@ Generated data that does not belong in this template:
 - Operations health center for data pull freshness, Pages deploy links, bridge auth, Actions history, and Slack workflow checks
 - Multi-board registry through `boards.json` for current and future release-board navigation
 - Accessibility and responsive QA harness for focus visibility, overflow checks, and screenshot review artifacts
+- Rollout readiness and fallback plan for keeping the current board available during modern preview migration
 
 ## Version History
+
+### v1.10.14
+
+- Added the SPEC-11 rollout and fallback plan.
+- Added a rollout readiness section to the Astro preview.
+- Documented the 122 and 123 preview URLs, cutover gates, and static-generator fallback path.
 
 ### v1.10.13
 
