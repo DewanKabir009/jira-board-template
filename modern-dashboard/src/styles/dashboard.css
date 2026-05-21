@@ -1480,11 +1480,15 @@ h3 {
 
 .custom-select-trigger {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
   cursor: pointer;
   text-align: left;
+}
+
+.custom-select-trigger.with-avatar {
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
 .custom-select-value {
@@ -1500,16 +1504,27 @@ h3 {
 
 .custom-select-chevron {
   display: inline-grid;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   place-items: center;
   border-radius: 999px;
-  background: var(--surface-muted);
+  background: linear-gradient(180deg, #ffffff, var(--surface-muted));
   color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 900;
-  line-height: 1;
-  text-transform: none;
+}
+
+.custom-select-chevron::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-top: -2px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.custom-select-trigger[aria-expanded="true"] .custom-select-chevron::before {
+  margin-top: 3px;
+  transform: rotate(225deg);
 }
 
 .custom-select-trigger[aria-expanded="true"] {
@@ -1847,6 +1862,28 @@ h3 {
   justify-content: space-between;
 }
 
+.grouped-ticket-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
+.grouped-ticket-actions > .row-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.grouped-ticket-actions .assign-control.compact {
+  width: 100%;
+  min-width: 0;
+}
+
+.grouped-ticket-actions .assign-control-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .ticket-card-summary {
   font-size: 0.98rem;
 }
@@ -1888,6 +1925,7 @@ h3 {
 }
 
 .subtask-toggle {
+  width: 100%;
   min-height: 34px;
   border: 1px solid var(--line-strong);
   border-radius: 8px;

@@ -1747,7 +1747,7 @@ function SelectFilter({
       <span>{label}</span>
       <button
         type="button"
-        className="custom-select-trigger"
+        className={showAvatars ? "custom-select-trigger with-avatar" : "custom-select-trigger"}
         aria-label={`${label}: ${display.label}`}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -1761,7 +1761,7 @@ function SelectFilter({
       >
         {showAvatars ? <Avatar option={display} /> : null}
         <span className="custom-select-value">{display.label}</span>
-        <span className="custom-select-chevron" aria-hidden="true">v</span>
+        <span className="custom-select-chevron" aria-hidden="true" />
       </button>
       {open ? (
         <div className="custom-select-menu" id={listboxId} role="listbox" aria-label={label} tabIndex={-1}>
