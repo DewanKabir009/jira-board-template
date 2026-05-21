@@ -76,6 +76,7 @@ type DashboardData = {
   dashboardUrl?: string;
   jiraFilterUrl?: string;
   assigneeDispatchEndpoint?: string;
+  assigneeOptions?: string[];
   testChecklistCommentEndpoint?: string;
   schemaVersion?: string;
   dataArtifact?: { fileName?: string };
@@ -165,6 +166,14 @@ type TicketColumn = {
 };
 
 type WorkspaceStatus = "draft" | "ready" | "submitting" | "submitted" | "failed";
+type AssignmentStatus = "idle" | "submitting" | "submitted" | "failed";
+
+type AssignmentRequestState = {
+  status: AssignmentStatus;
+  assignee: string;
+  message: string;
+  requestedAt?: string;
+};
 
 type ChecklistItem = {
   id: string;
@@ -240,6 +249,12 @@ type OperationsHealth = {
 
 const PAGE_SIZE_OPTIONS = [15, 25, 50];
 const CARD_COLUMN_COUNT = 3;
+const DEFAULT_ASSIGNABLE_ASSIGNEES = [
+  "Dewan Kabir",
+  "Nicole Greer",
+  "Alex McNay",
+  "Anton Yurkevich"
+];
 const STATUS_ORDER = [
   "Blocked",
   "Pre Planning",
@@ -274,6 +289,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   const [componentListCopied, setComponentListCopied] = useState(false);
   const [selectedKey, setSelectedKey] = useState("");
   const [dialogIssueKey, setDialogIssueKey] = useState("");
+  const [assignmentStateByKey, setAssignmentStateByKey] = useState<Record<string, AssignmentRequestState>>({});
   const [sorting, setSorting] = useState<SortingState>([{ id: "updatedDisplay", desc: true }]);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(25);
@@ -328,6 +344,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   const cutoverValidation = useMemo(() => buildCutoverValidation(data, boardRegistry, loadError), [data, boardRegistry, loadError]);
   const analytics = useMemo(() => buildReleaseAnalytics(data, issues, changeSets), [data, issues, changeSets]);
   const componentCounts = useMemo(() => buildComponentCounts(issues), [issues]);
+  const assignableAssigneeOptions = useMemo(() => createAssignableAssigneeOptions(data, issues), [data, issues]);
 
   const filteredIssues = useMemo(() => {
     return issues.filter((issue) => matchesFilters(issue, filters, changeSets, activePreset));
@@ -338,6 +355,96 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   const visibleSubtaskCount = useMemo(() => {
     return ticketGroups.reduce((total, group) => total + group.visibleSubtasks.length, 0);
   }, [ticketGroups]);
+
+  function setAssignmentState(issueKey: string, next: AssignmentRequestState) {
+    setAssignmentStateByKey((current) => ({
+      ...current,
+      [issueKey]: next
+    }));
+  }
+
+  function updateIssueAssignee(issueKey: string, assignee: string) {
+    const option = assignableAssigneeOptions.find((item) => item.value === assignee);
+    setData((current) => {
+      if (!current?.issues) {
+        return current;
+      }
+
+      return {
+        ...current,
+        issues: current.issues.map((issue) => issue.key === issueKey ? {
+          ...issue,
+          assignee,
+          assigneeAvatarUrl: option?.avatarUrl || issue.assigneeAvatarUrl
+        } : issue)
+      };
+    });
+  }
+
+  async function submitAssigneeChange(issue: Issue, assignee: string) {
+    const issueKey = issue.key || "";
+    const endpoint = data?.assigneeDispatchEndpoint || "";
+
+    if (!issueKey) {
+      return;
+    }
+
+    if (!endpoint) {
+      setAssignmentState(issueKey, {
+        status: "failed",
+        assignee,
+        message: "No Cloudflare assignee bridge is configured for this board."
+      });
+      return;
+    }
+
+    setAssignmentState(issueKey, {
+      status: "submitting",
+      assignee,
+      message: "Starting secure assignee workflow..."
+    });
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=UTF-8" },
+        credentials: "include",
+        body: JSON.stringify({
+          issueKey,
+          assigneeDisplayName: assignee,
+          releaseVersion: data?.version || "",
+          repositorySlug: data?.repositorySlug || "",
+          dashboardUrl: data?.dashboardUrl || (typeof window === "undefined" ? "" : window.location.href),
+          requestedAt: new Date().toISOString()
+        })
+      });
+      const payload = await response.json().catch(() => ({
+        ok: false,
+        message: "The dispatch bridge returned an unreadable response."
+      }));
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || payload?.error || "The dispatch bridge rejected the request.");
+      }
+
+      updateIssueAssignee(issueKey, assignee);
+      setAssignmentState(issueKey, {
+        status: "submitted",
+        assignee,
+        requestedAt: new Date().toISOString(),
+        message: "Workflow started. Jira and this board will refresh shortly."
+      });
+    } catch (error) {
+      setAssignmentState(issueKey, {
+        status: "failed",
+        assignee,
+        message: isHostedBridgeEndpoint(endpoint)
+          ? "Cloudflare login is required. Open the bridge link, then retry."
+          : error instanceof Error ? error.message : "Assignee workflow could not be started."
+      });
+      console.error(error);
+    }
+  }
 
   const columns = useMemo<ColumnDef<Issue>[]>(() => [
     {
@@ -377,7 +484,8 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
     {
       id: "assignee",
       header: "Assignee",
-      accessorFn: (issue) => issue.assignee || "Unassigned"
+      accessorFn: (issue) => issue.assignee || "Unassigned",
+      cell: ({ row }) => <AssigneeBadge issue={row.original} />
     },
     {
       id: "priority",
@@ -409,12 +517,19 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
       enableSorting: false,
       cell: ({ row }) => (
         <div className="row-actions">
+          <AssigneeAssignmentControl
+            issue={row.original}
+            options={assignableAssigneeOptions}
+            request={assignmentStateByKey[row.original.key || ""]}
+            onAssign={submitAssigneeChange}
+            compact
+          />
           <a href={row.original.url || "#"} target="_blank" rel="noreferrer">Jira</a>
           <button type="button" onClick={() => openTicketDialog(row.original.key || "")} aria-label={`Show details for ${row.original.key || "ticket"}`}>Details</button>
         </div>
       )
     }
-  ], []);
+  ], [assignableAssigneeOptions, assignmentStateByKey, data]);
 
   const table = useReactTable({
     data: filteredIssues,
@@ -618,7 +733,10 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
                 changeSets={changeSets}
                 openSubtaskParents={openSubtaskParents}
                 collapsedStatuses={collapsedCardStatuses}
+                assignmentOptions={assignableAssigneeOptions}
+                assignmentStates={assignmentStateByKey}
                 onSelectTicket={openTicketDialog}
+                onAssign={submitAssigneeChange}
                 onToggleSubtasks={toggleSubtasks}
                 onToggleStatus={toggleCardStatus}
               />
@@ -670,7 +788,14 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
             </div>
           </div>
 
-          <TicketDetail issue={selectedIssue} data={data} changeSets={changeSets} />
+          <TicketDetail
+            issue={selectedIssue}
+            data={data}
+            changeSets={changeSets}
+            assignmentOptions={assignableAssigneeOptions}
+            assignmentRequest={assignmentStateByKey[selectedIssue?.key || ""]}
+            onAssign={submitAssigneeChange}
+          />
         </div>
       </section>
 
@@ -688,7 +813,15 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
         <RolloutReadiness data={data} registry={boardRegistry} />
       </details>
 
-      <TicketDetailDialog issue={dialogIssue} data={data} changeSets={changeSets} onClose={closeTicketDialog} />
+      <TicketDetailDialog
+        issue={dialogIssue}
+        data={data}
+        changeSets={changeSets}
+        assignmentOptions={assignableAssigneeOptions}
+        assignmentRequest={assignmentStateByKey[dialogIssue?.key || ""]}
+        onAssign={submitAssigneeChange}
+        onClose={closeTicketDialog}
+      />
     </main>
   );
 }
@@ -929,7 +1062,10 @@ function TicketCardView({
   changeSets,
   openSubtaskParents,
   collapsedStatuses,
+  assignmentOptions,
+  assignmentStates,
   onSelectTicket,
+  onAssign,
   onToggleSubtasks,
   onToggleStatus
 }: {
@@ -938,7 +1074,10 @@ function TicketCardView({
   changeSets: ChangeSets;
   openSubtaskParents: Set<string>;
   collapsedStatuses: Set<string>;
+  assignmentOptions: SelectOption[];
+  assignmentStates: Record<string, AssignmentRequestState>;
   onSelectTicket: (key: string) => void;
+  onAssign: (issue: Issue, assignee: string) => void | Promise<void>;
   onToggleSubtasks: (key: string) => void;
   onToggleStatus: (status: string) => void;
 }) {
@@ -980,7 +1119,10 @@ function TicketCardView({
                         selectedKey={selectedKey}
                         changeSets={changeSets}
                         openSubtaskParents={openSubtaskParents}
+                        assignmentOptions={assignmentOptions}
+                        assignmentStates={assignmentStates}
                         onSelectTicket={onSelectTicket}
+                        onAssign={onAssign}
                         onToggleSubtasks={onToggleSubtasks}
                         key={group.issue.key || `${section.status}-${index}`}
                       />
@@ -1002,7 +1144,10 @@ function GroupedTicketCard({
   selectedKey,
   changeSets,
   openSubtaskParents,
+  assignmentOptions,
+  assignmentStates,
   onSelectTicket,
+  onAssign,
   onToggleSubtasks
 }: {
   group: TicketGroup;
@@ -1010,7 +1155,10 @@ function GroupedTicketCard({
   selectedKey: string;
   changeSets: ChangeSets;
   openSubtaskParents: Set<string>;
+  assignmentOptions: SelectOption[];
+  assignmentStates: Record<string, AssignmentRequestState>;
   onSelectTicket: (key: string) => void;
+  onAssign: (issue: Issue, assignee: string) => void | Promise<void>;
   onToggleSubtasks: (key: string) => void;
 }) {
   const issue = group.issue;
@@ -1040,7 +1188,7 @@ function GroupedTicketCard({
       <dl className="ticket-card-meta">
         <div>
           <dt>Assignee</dt>
-          <dd>{issue.assignee || "Unassigned"}</dd>
+          <dd><AssigneeBadge issue={issue} /></dd>
         </div>
         <div>
           <dt>Updated</dt>
@@ -1060,6 +1208,13 @@ function GroupedTicketCard({
 
       <div className="grouped-ticket-actions">
         <div className="row-actions">
+          <AssigneeAssignmentControl
+            issue={issue}
+            options={assignmentOptions}
+            request={assignmentStates[issue.key || ""]}
+            onAssign={onAssign}
+            compact
+          />
           <a href={issue.url || "#"} target="_blank" rel="noreferrer">Jira</a>
           <button type="button" onClick={() => onSelectTicket(issue.key || "")}>Details</button>
         </div>
@@ -1098,11 +1253,18 @@ function GroupedTicketCard({
               </div>
               <div className="subtask-meta">
                 <span className="status-pill">{subtask.status || "None"}</span>
-                <span>{subtask.assignee || "Unassigned"}</span>
+                <AssigneeBadge issue={subtask} />
                 <span>{subtask.priority || "None"}</span>
                 <span>{formatComponents(subtask.components)}</span>
               </div>
               <div className="row-actions subtask-actions">
+                <AssigneeAssignmentControl
+                  issue={subtask}
+                  options={assignmentOptions}
+                  request={assignmentStates[subtask.key || ""]}
+                  onAssign={onAssign}
+                  compact
+                />
                 <a href={subtask.url || "#"} target="_blank" rel="noreferrer">Jira</a>
                 <button type="button" onClick={() => onSelectTicket(subtask.key || "")}>Details</button>
               </div>
@@ -1475,6 +1637,70 @@ function PresetButton({ label, active, onClick }: { label: string; active: boole
   );
 }
 
+function AssigneeAssignmentControl({
+  issue,
+  options,
+  request,
+  onAssign,
+  compact = false
+}: {
+  issue: Issue;
+  options: SelectOption[];
+  request?: AssignmentRequestState;
+  onAssign: (issue: Issue, assignee: string) => void | Promise<void>;
+  compact?: boolean;
+}) {
+  const issueKey = issue.key || "";
+  const currentAssignee = issue.assignee || "Unassigned";
+  const initialValue = options.some((option) => option.value === currentAssignee) ? currentAssignee : "";
+  const [selectedAssignee, setSelectedAssignee] = useState(initialValue);
+  const isSubmitting = request?.status === "submitting";
+  const selectedIsCurrent = selectedAssignee === currentAssignee;
+  const canSubmit = Boolean(issueKey && selectedAssignee && !isSubmitting && !selectedIsCurrent);
+
+  useEffect(() => {
+    setSelectedAssignee(options.some((option) => option.value === currentAssignee) ? currentAssignee : "");
+  }, [issueKey, currentAssignee, options]);
+
+  return (
+    <div className={compact ? "assign-control compact" : "assign-control"}>
+      <div className="assign-control-row">
+        <SelectFilter
+          label={compact ? "Assign" : "Assign ticket"}
+          value={selectedAssignee}
+          options={options}
+          onChange={setSelectedAssignee}
+          allLabel="Choose assignee"
+          showAvatars
+        />
+        <button
+          type="button"
+          className="assign-submit-button"
+          disabled={!canSubmit}
+          onClick={() => onAssign(issue, selectedAssignee)}
+        >
+          {isSubmitting ? "Starting" : selectedIsCurrent ? "Assigned" : "Assign"}
+        </button>
+      </div>
+      {request?.message ? (
+        <p className={`assign-message ${request.status}`}>
+          {request.message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function AssigneeBadge({ issue }: { issue: Issue }) {
+  const label = issue.assignee || "Unassigned";
+  return (
+    <span className="assignee-badge">
+      <Avatar option={{ value: label, label, avatarUrl: issue.assigneeAvatarUrl }} />
+      <span>{label}</span>
+    </span>
+  );
+}
+
 function SelectFilter({
   label,
   value,
@@ -1614,7 +1840,42 @@ function assigneeOptions(issues: Issue[]): SelectOption[] {
   return Array.from(optionsByName.values()).sort((first, second) => first.label.localeCompare(second.label));
 }
 
-function TicketDetail({ issue, data, changeSets }: { issue?: Issue; data: DashboardData | null; changeSets: ChangeSets }) {
+function createAssignableAssigneeOptions(data: DashboardData | null, issues: Issue[]): SelectOption[] {
+  const avatarByName = new Map<string, string>();
+  for (const issue of issues) {
+    const name = issue.assignee || "";
+    if (name && issue.assigneeAvatarUrl && !avatarByName.has(name)) {
+      avatarByName.set(name, issue.assigneeAvatarUrl);
+    }
+  }
+
+  const names = uniqueStrings(data?.assigneeOptions?.length ? data.assigneeOptions : DEFAULT_ASSIGNABLE_ASSIGNEES);
+  return names.map((name) => ({
+    value: name,
+    label: name,
+    avatarUrl: avatarByName.get(name) || ""
+  }));
+}
+
+function uniqueStrings(values: string[]) {
+  return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)));
+}
+
+function TicketDetail({
+  issue,
+  data,
+  changeSets,
+  assignmentOptions,
+  assignmentRequest,
+  onAssign
+}: {
+  issue?: Issue;
+  data: DashboardData | null;
+  changeSets: ChangeSets;
+  assignmentOptions: SelectOption[];
+  assignmentRequest?: AssignmentRequestState;
+  onAssign: (issue: Issue, assignee: string) => void | Promise<void>;
+}) {
   if (!issue) {
     return (
       <aside className="ticket-detail-panel">
@@ -1636,6 +1897,12 @@ function TicketDetail({ issue, data, changeSets }: { issue?: Issue; data: Dashbo
         <span className="priority-pill">{issue.priority || "None"}</span>
       </div>
       <h2>{issue.summary || "Untitled ticket"}</h2>
+      <AssigneeAssignmentControl
+        issue={issue}
+        options={assignmentOptions}
+        request={assignmentRequest}
+        onAssign={onAssign}
+      />
       <div className="change-tags">
         {changeTags.length > 0 ? changeTags.map((tag) => <span key={tag}>{tag}</span>) : <span>No pull diff change</span>}
       </div>
@@ -1654,11 +1921,17 @@ function TicketDetailDialog({
   issue,
   data,
   changeSets,
+  assignmentOptions,
+  assignmentRequest,
+  onAssign,
   onClose
 }: {
   issue?: Issue;
   data: DashboardData | null;
   changeSets: ChangeSets;
+  assignmentOptions: SelectOption[];
+  assignmentRequest?: AssignmentRequestState;
+  onAssign: (issue: Issue, assignee: string) => void | Promise<void>;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -1711,6 +1984,12 @@ function TicketDetailDialog({
         </header>
 
         <div className="ticket-detail-modal-body">
+          <AssigneeAssignmentControl
+            issue={issue}
+            options={assignmentOptions}
+            request={assignmentRequest}
+            onAssign={onAssign}
+          />
           <div className="change-tags">
             {changeTags.length > 0 ? changeTags.map((tag) => <span key={tag}>{tag}</span>) : <span>No pull diff change</span>}
           </div>
@@ -1727,7 +2006,7 @@ function TicketDetailFields({ issue, checklistTotal }: { issue: Issue; checklist
   return (
     <dl className="detail-grid">
       <div><dt>Status</dt><dd>{issue.status || "None"}</dd></div>
-      <div><dt>Assignee</dt><dd>{issue.assignee || "Unassigned"}</dd></div>
+      <div><dt>Assignee</dt><dd><AssigneeBadge issue={issue} /></dd></div>
       <div><dt>Parent</dt><dd>{parentLabel(issue) || (issue.isSubtask ? "Subtask" : "Main ticket")}</dd></div>
       <div><dt>Checklist</dt><dd>{checklistTotal ? `${checklistTotal} cases` : "No parsed checklist"}</dd></div>
     </dl>
