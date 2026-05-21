@@ -6,17 +6,24 @@ import {
   type SortingState,
   useReactTable
 } from "@tanstack/react-table";
-import { type CSSProperties, useEffect, useId, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useId, useMemo, useState } from "react";
 
 type PullChange = string | {
   key?: string;
   issueKey?: string;
   issue?: { key?: string };
+  url?: string;
+  summary?: string;
+  status?: string;
+  updatedDisplay?: string;
+  parent?: { key?: string; summary?: string } | string | null;
   before?: string;
   after?: string;
+  changes?: Array<{ field?: string; before?: string; after?: string; from?: string; to?: string }>;
 };
 
 type PullDiffEntry = {
+  previousPulledAt?: string;
   currentPulledAt?: string;
   currentPulledAtDisplay?: string;
   previousPulledAtDisplay?: string;
@@ -38,6 +45,7 @@ type Issue = {
   assignee?: string;
   assigneeAvatarUrl?: string;
   assigneeAccountId?: string;
+  updated?: string;
   updatedDisplay?: string;
   components?: string[];
   parent?: { key?: string; summary?: string } | string | null;
@@ -143,6 +151,17 @@ type TicketGroup = {
   matchedBySubtask: boolean;
 };
 
+type TicketSection = {
+  status: string;
+  groups: TicketGroup[];
+};
+
+type TicketColumn = {
+  id: number;
+  weight: number;
+  sections: TicketSection[];
+};
+
 type WorkspaceStatus = "draft" | "ready" | "submitting" | "submitted" | "failed";
 
 type ChecklistItem = {
@@ -218,6 +237,17 @@ type OperationsHealth = {
 };
 
 const PAGE_SIZE_OPTIONS = [15, 25, 50];
+const CARD_COLUMN_COUNT = 3;
+const STATUS_ORDER = [
+  "Blocked",
+  "Pre Planning",
+  "Analysis",
+  "PO Review",
+  "Code Review",
+  "QA Testing (DEV)",
+  "Pending Deployment (DEV)",
+  "Closed"
+];
 
 const EMPTY_FILTERS: Filters = {
   search: "",
@@ -238,6 +268,8 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   const [activePreset, setActivePreset] = useState<PresetKey>("all");
   const [explorerView, setExplorerView] = useState<ExplorerView>("cards");
   const [openSubtaskParents, setOpenSubtaskParents] = useState<Set<string>>(new Set());
+  const [collapsedCardStatuses, setCollapsedCardStatuses] = useState<Set<string>>(new Set());
+  const [componentListCopied, setComponentListCopied] = useState(false);
   const [selectedKey, setSelectedKey] = useState("");
   const [sorting, setSorting] = useState<SortingState>([{ id: "updatedDisplay", desc: true }]);
   const [pageIndex, setPageIndex] = useState(0);
@@ -292,6 +324,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   const operationsHealth = useMemo(() => buildOperationsHealth(data, loadError), [data, loadError]);
   const cutoverValidation = useMemo(() => buildCutoverValidation(data, boardRegistry, loadError), [data, boardRegistry, loadError]);
   const analytics = useMemo(() => buildReleaseAnalytics(data, issues, changeSets), [data, issues, changeSets]);
+  const componentCounts = useMemo(() => buildComponentCounts(issues), [issues]);
 
   const filteredIssues = useMemo(() => {
     return issues.filter((issue) => matchesFilters(issue, filters, changeSets, activePreset));
@@ -432,6 +465,26 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
     });
   }
 
+  function toggleCardStatus(status: string) {
+    setCollapsedCardStatuses((current) => {
+      const next = new Set(current);
+      if (next.has(status)) {
+        next.delete(status);
+      } else {
+        next.add(status);
+      }
+      return next;
+    });
+  }
+
+  function copyComponentList() {
+    const value = componentCounts.map((entry) => `- ${entry[0]}`).join("\n");
+    copyTextToClipboard(value).then(() => {
+      setComponentListCopied(true);
+      window.setTimeout(() => setComponentListCopied(false), 1400);
+    });
+  }
+
   return (
     <main className="dashboard-shell modern-explorer-shell">
       <section className="board-hero" aria-labelledby="board-title">
@@ -460,11 +513,14 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
 
       <BoardRegistryDirectory registry={boardRegistry} registryError={registryError} currentVersion={data?.version} />
 
-      <RolloutReadiness data={data} registry={boardRegistry} />
-
-      <CutoverValidationPanel validation={cutoverValidation} />
-
-      <OperationsHealthCenter health={operationsHealth} />
+      <ComponentInventory
+        components={componentCounts}
+        total={issues.length}
+        activeComponent={filters.component}
+        copied={componentListCopied}
+        onSelectComponent={(component) => updateFilter("component", component)}
+        onCopy={copyComponentList}
+      />
 
       <ReleaseAnalyticsBand analytics={analytics} />
 
@@ -522,7 +578,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
 
         {loadError ? <p className="load-error">{loadError}</p> : null}
 
-        <div className="explorer-body">
+        <div className={explorerView === "cards" ? "explorer-body cards-mode" : "explorer-body"}>
           <div className={explorerView === "cards" ? "table-card ticket-board-card" : "table-card"}>
             <div className="table-summary">
               <span>
@@ -544,8 +600,10 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
                 selectedKey={selectedIssue?.key || ""}
                 changeSets={changeSets}
                 openSubtaskParents={openSubtaskParents}
+                collapsedStatuses={collapsedCardStatuses}
                 onSelectTicket={(key) => setSelectedKey(key)}
                 onToggleSubtasks={toggleSubtasks}
+                onToggleStatus={toggleCardStatus}
               />
             ) : (
               <div className="ticket-table-wrap">
@@ -598,6 +656,20 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
           <TicketDetail issue={selectedIssue} data={data} changeSets={changeSets} />
         </div>
       </section>
+
+      <DataPullSection data={data} loadError={loadError} />
+
+      <OperationsHealthCenter health={operationsHealth} />
+
+      <CutoverValidationPanel validation={cutoverValidation} />
+
+      <details className="migration-rollout-details">
+        <summary>
+          <span>Rollout readiness and fallback notes</span>
+          <span>Migration reference</span>
+        </summary>
+        <RolloutReadiness data={data} registry={boardRegistry} />
+      </details>
     </main>
   );
 }
@@ -628,20 +700,228 @@ function ViewToggle({ value, onChange }: { value: ExplorerView; onChange: (value
   );
 }
 
+function ComponentInventory({
+  components,
+  total,
+  activeComponent,
+  copied,
+  onSelectComponent,
+  onCopy
+}: {
+  components: Array<[string, number]>;
+  total: number;
+  activeComponent: string;
+  copied: boolean;
+  onSelectComponent: (component: string) => void;
+  onCopy: () => void;
+}) {
+  return (
+    <section className="components-panel" aria-labelledby="components-heading">
+      <div className="components-heading">
+        <div>
+          <p className="eyebrow">Fix version components</p>
+          <h2 id="components-heading">Component inventory</h2>
+        </div>
+        <button
+          type="button"
+          className={copied ? "copy-list-button copied" : "copy-list-button"}
+          onClick={onCopy}
+          disabled={!components.length}
+        >
+          {copied ? "Copied" : "Copy list"}
+        </button>
+      </div>
+      <div className="component-chip-row" aria-label="Components in this fix version">
+        <button
+          type="button"
+          className={!activeComponent ? "component-chip active" : "component-chip"}
+          onClick={() => onSelectComponent("")}
+        >
+          <span>All components</span>
+          <strong>{total}</strong>
+        </button>
+        {components.map(([component, count]) => (
+          <button
+            type="button"
+            className={activeComponent === component ? "component-chip active" : "component-chip"}
+            key={component}
+            onClick={() => onSelectComponent(component)}
+          >
+            <span>{component}</span>
+            <strong>{count}</strong>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function DataPullSection({ data, loadError }: { data: DashboardData | null; loadError: string }) {
+  const history = normalizedPullHistory(data);
+  const diff = data?.pullDiff || history[0] || null;
+  const current = diff?.currentPulledAtDisplay || data?.pulledAtDisplay || data?.pulledAt || "";
+
+  return (
+    <details className="data-pull-section" id="data-pull">
+      <summary>
+        <span>Data Pull</span>
+        <span className="pull-meta">Latest pull: {pullDisplay(current)}</span>
+      </summary>
+      <div className="pull-body">
+        {loadError ? <p className="load-error">{loadError}</p> : null}
+        {diff ? <PullComparison diff={diff} data={data} /> : <p className="pull-empty">Waiting for the first Jira data pull.</p>}
+        <PullHistory history={history} latestDiff={diff} />
+      </div>
+    </details>
+  );
+}
+
+function PullComparison({ diff, data }: { diff: PullDiffEntry; data: DashboardData | null }) {
+  const lists = getDiffLists(diff);
+  const hasChanges = pullHasChanges(diff);
+
+  return (
+    <section className="pull-snapshot" aria-labelledby="latest-pull-comparison">
+      <h3 id="latest-pull-comparison" className="pull-section-title">Latest comparison</h3>
+      <div className="pull-timing">
+        <div><b>Previous pull:</b> {pullDisplay(diff.previousPulledAtDisplay || "No previous pull")}</div>
+        <div><b>Most recent pull:</b> {pullDisplay(diff.currentPulledAtDisplay || data?.pulledAtDisplay || data?.pulledAt || "Pending")}</div>
+      </div>
+      <div className="pull-stats" aria-label="Latest pull totals">
+        <PullStat label="Added" value={lists.added.length} />
+        <PullStat label="Updated" value={lists.updated.length} />
+        <PullStat label="Status moves" value={lists.statusChanges.length} />
+        <PullStat label="Removed" value={lists.removed.length} />
+      </div>
+      {diff.isBaseline ? (
+        <p className="pull-note">Baseline snapshot captured for comparison history.</p>
+      ) : !hasChanges ? (
+        <p className="pull-note">No ticket-level changes were detected between these two pulls.</p>
+      ) : (
+        <div className="pull-change-grid">
+          <PullGroup title="Added" items={lists.added} renderer={(item, index) => <PullIssue change={item} index={index} />} />
+          <PullGroup title="Updated" items={lists.updated} renderer={(item, index) => <PullIssue change={item} index={index} showDetails />} />
+          <PullGroup title="Status moves" items={lists.statusChanges} renderer={(item, index) => <PullStatusChange change={item} index={index} />} />
+          <PullGroup title="Removed" items={lists.removed} renderer={(item, index) => <PullIssue change={item} index={index} />} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PullHistory({ history, latestDiff }: { history: PullDiffEntry[]; latestDiff: PullDiffEntry | null }) {
+  const latestId = latestDiff?.currentPulledAt || "";
+  const changedHistory = history
+    .filter((entry) => pullHasChanges(entry) && (!latestId || entry.currentPulledAt !== latestId))
+    .slice(0, 8);
+
+  return (
+    <section className="pull-history" aria-labelledby="pull-history-heading">
+      <h3 id="pull-history-heading" className="pull-section-title">Recent changed pulls</h3>
+      {changedHistory.length ? (
+        <div className="pull-history-list">
+          {changedHistory.map((entry, index) => {
+            const lists = getDiffLists(entry);
+            return (
+              <article className="pull-history-entry" key={entry.currentPulledAt || entry.currentPulledAtDisplay || index}>
+                <div className="pull-history-title">
+                  <span>{pullDisplay(entry.currentPulledAtDisplay || entry.currentPulledAt || `Pull ${index + 1}`)}</span>
+                  <strong>{lists.added.length + lists.updated.length + lists.statusChanges.length + lists.removed.length} changes</strong>
+                </div>
+                <div className="pull-history-stats">
+                  <span>{lists.added.length} added</span>
+                  <span>{lists.updated.length} updated</span>
+                  <span>{lists.statusChanges.length} moved</span>
+                  <span>{lists.removed.length} removed</span>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="pull-note">No older changed pulls are present in the retained history.</p>
+      )}
+    </section>
+  );
+}
+
+function PullStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="pull-stat">
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function PullGroup({
+  title,
+  items,
+  renderer
+}: {
+  title: string;
+  items: PullChange[];
+  renderer: (item: PullChange, index: number) => ReactNode;
+}) {
+  if (!items.length) {
+    return null;
+  }
+
+  return (
+    <section className="pull-group">
+      <h4>{title}</h4>
+      <div className="pull-list">
+        {items.slice(0, 12).map((item, index) => renderer(item, index))}
+      </div>
+      {items.length > 12 ? <p className="pull-note">{items.length - 12} more not shown.</p> : null}
+    </section>
+  );
+}
+
+function PullIssue({ change, index, showDetails = false }: { change: PullChange; index: number; showDetails?: boolean }) {
+  const key = extractChangeKey(change);
+  const href = changeHref(change);
+  const summary = changeSummary(change);
+  const parent = changeParentLabel(change);
+  const details = showDetails ? changeDetailLabels(change) : [];
+
+  return (
+    <article className="pull-item" key={`${key || summary}-${index}`}>
+      <div className="pull-item-title">
+        {href ? <a href={href} target="_blank" rel="noreferrer">{key || "Ticket"}</a> : <span>{key || "Ticket"}</span>}
+        <span>{summary || "Ticket changed"}</span>
+      </div>
+      {parent ? <p>{parent}</p> : null}
+      {details.length ? <p>{details.slice(0, 2).join("; ")}</p> : null}
+    </article>
+  );
+}
+
+function PullStatusChange({ change, index }: { change: PullChange; index: number }) {
+  const details = statusChangeLabel(change);
+  return (
+    <PullIssue change={{ ...(typeof change === "string" ? { key: change } : change), summary: changeSummary(change) || details }} index={index} showDetails />
+  );
+}
+
 function TicketCardView({
   groups,
   selectedKey,
   changeSets,
   openSubtaskParents,
+  collapsedStatuses,
   onSelectTicket,
-  onToggleSubtasks
+  onToggleSubtasks,
+  onToggleStatus
 }: {
   groups: TicketGroup[];
   selectedKey: string;
   changeSets: ChangeSets;
   openSubtaskParents: Set<string>;
+  collapsedStatuses: Set<string>;
   onSelectTicket: (key: string) => void;
   onToggleSubtasks: (key: string) => void;
+  onToggleStatus: (status: string) => void;
 }) {
   if (!groups.length) {
     return (
@@ -651,117 +931,167 @@ function TicketCardView({
     );
   }
 
+  const columns = distributeTicketSections(groupTicketSections(groups), openSubtaskParents, collapsedStatuses);
+
   return (
-    <div className="ticket-card-board" aria-label="Grouped ticket cards">
-      {groups.map((group, index) => {
-        const issue = group.issue;
-        const parentId = issue.key || `ticket-${index}`;
-        const isOpen = openSubtaskParents.has(parentId);
-        const subtaskCount = group.visibleSubtasks.length;
-        const changes = changeLabels(issue.key || "", changeSets);
-
-        return (
-          <article
-            className={selectedKey === issue.key ? "grouped-ticket-card selected" : "grouped-ticket-card"}
-            key={parentId}
-          >
-            <div className="grouped-ticket-topline">
-              <a className="table-ticket-key" href={issue.url || "#"} target="_blank" rel="noreferrer">
-                {issue.key || "Ticket"}
-              </a>
-              <span className="priority-pill">{issue.priority || "None"}</span>
-            </div>
-
-            <button
-              className="summary-button ticket-card-summary"
-              type="button"
-              onClick={() => onSelectTicket(issue.key || "")}
-              aria-label={`Open details for ${issue.key || "ticket"}: ${issue.summary || "Untitled ticket"}`}
-            >
-              {issue.summary || "Untitled ticket"}
-            </button>
-
-            <dl className="ticket-card-meta">
-              <div>
-                <dt>Status</dt>
-                <dd><span className="status-pill">{issue.status || "None"}</span></dd>
-              </div>
-              <div>
-                <dt>Assignee</dt>
-                <dd>{issue.assignee || "Unassigned"}</dd>
-              </div>
-              <div>
-                <dt>Updated</dt>
-                <dd>{issue.updatedDisplay || "Unknown"}</dd>
-              </div>
-              <div>
-                <dt>Components</dt>
-                <dd>{formatComponents(issue.components)}</dd>
-              </div>
-            </dl>
-
-            {changes.length ? (
-              <div className="change-tags card-change-tags" aria-label="Ticket changes">
-                {changes.map((label) => <span key={label}>{label}</span>)}
-              </div>
-            ) : null}
-
-            <div className="grouped-ticket-actions">
-              <div className="row-actions">
-                <a href={issue.url || "#"} target="_blank" rel="noreferrer">Jira</a>
-                <button type="button" onClick={() => onSelectTicket(issue.key || "")}>Details</button>
-              </div>
-              <button
-                type="button"
-                className="subtask-toggle"
-                disabled={!subtaskCount}
-                aria-expanded={isOpen}
-                onClick={() => onToggleSubtasks(parentId)}
-              >
-                {isOpen ? "Hide" : "Show"} {formatSubtaskCount(subtaskCount, group.subtasks.length)}
-              </button>
-            </div>
-
-            {group.matchedBySubtask ? <span className="subtask-match-note">Matched by subtask</span> : null}
-
-            {isOpen && subtaskCount ? (
-              <div className="subtask-list" aria-label={`Subtasks for ${issue.key || "ticket"}`}>
-                {group.visibleSubtasks.map((subtask) => (
-                  <div
-                    className={selectedKey === subtask.key ? "subtask-row selected" : "subtask-row"}
-                    key={subtask.key || `${parentId}-${subtask.summary}`}
-                  >
-                    <div className="subtask-main">
-                      <a className="table-ticket-key" href={subtask.url || "#"} target="_blank" rel="noreferrer">
-                        {subtask.key || "Subtask"}
-                      </a>
-                      <button
-                        className="summary-button subtask-summary"
-                        type="button"
-                        onClick={() => onSelectTicket(subtask.key || "")}
-                        aria-label={`Open details for ${subtask.key || "subtask"}: ${subtask.summary || "Untitled subtask"}`}
-                      >
-                        {subtask.summary || "Untitled subtask"}
-                      </button>
-                    </div>
-                    <div className="subtask-meta">
-                      <span className="status-pill">{subtask.status || "None"}</span>
-                      <span>{subtask.assignee || "Unassigned"}</span>
-                      <span>{subtask.priority || "None"}</span>
-                      <span>{formatComponents(subtask.components)}</span>
-                    </div>
-                    <div className="row-actions subtask-actions">
-                      <a href={subtask.url || "#"} target="_blank" rel="noreferrer">Jira</a>
-                      <button type="button" onClick={() => onSelectTicket(subtask.key || "")}>Details</button>
-                    </div>
+    <div className="ticket-card-board legacy-board-grid" aria-label="Legacy grouped ticket cards">
+      {columns.map((column) => (
+        <div className="ticket-board-column" key={column.id}>
+          {column.sections.map((section) => {
+            const collapsed = collapsedStatuses.has(section.status);
+            const issueCount = section.groups.reduce((total, group) => total + 1 + group.visibleSubtasks.length, 0);
+            return (
+              <section className={collapsed ? "ticket-status-section collapsed" : "ticket-status-section"} key={section.status}>
+                <button
+                  type="button"
+                  className="status-section-toggle"
+                  aria-expanded={!collapsed}
+                  onClick={() => onToggleStatus(section.status)}
+                >
+                  <span>{section.status}</span>
+                  <strong>{issueCount}</strong>
+                  <span>{collapsed ? ">" : "v"}</span>
+                </button>
+                {collapsed ? null : (
+                  <div className="status-section-cards">
+                    {section.groups.map((group, index) => (
+                      <GroupedTicketCard
+                        group={group}
+                        index={index}
+                        selectedKey={selectedKey}
+                        changeSets={changeSets}
+                        openSubtaskParents={openSubtaskParents}
+                        onSelectTicket={onSelectTicket}
+                        onToggleSubtasks={onToggleSubtasks}
+                        key={group.issue.key || `${section.status}-${index}`}
+                      />
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : null}
-          </article>
-        );
-      })}
+                )}
+              </section>
+            );
+          })}
+        </div>
+      ))}
     </div>
+  );
+}
+
+function GroupedTicketCard({
+  group,
+  index,
+  selectedKey,
+  changeSets,
+  openSubtaskParents,
+  onSelectTicket,
+  onToggleSubtasks
+}: {
+  group: TicketGroup;
+  index: number;
+  selectedKey: string;
+  changeSets: ChangeSets;
+  openSubtaskParents: Set<string>;
+  onSelectTicket: (key: string) => void;
+  onToggleSubtasks: (key: string) => void;
+}) {
+  const issue = group.issue;
+  const parentId = issue.key || `ticket-${index}`;
+  const isOpen = openSubtaskParents.has(parentId);
+  const subtaskCount = group.visibleSubtasks.length;
+  const changes = changeLabels(issue.key || "", changeSets);
+
+  return (
+    <article className={selectedKey === issue.key ? "grouped-ticket-card selected" : "grouped-ticket-card"}>
+      <div className="grouped-ticket-topline">
+        <a className="table-ticket-key" href={issue.url || "#"} target="_blank" rel="noreferrer">
+          {issue.key || "Ticket"}
+        </a>
+        <span className="priority-pill">{issue.priority || "None"}</span>
+      </div>
+
+      <button
+        className="summary-button ticket-card-summary"
+        type="button"
+        onClick={() => onSelectTicket(issue.key || "")}
+        aria-label={`Open details for ${issue.key || "ticket"}: ${issue.summary || "Untitled ticket"}`}
+      >
+        {issue.summary || "Untitled ticket"}
+      </button>
+
+      <dl className="ticket-card-meta">
+        <div>
+          <dt>Assignee</dt>
+          <dd>{issue.assignee || "Unassigned"}</dd>
+        </div>
+        <div>
+          <dt>Updated</dt>
+          <dd>{issue.updatedDisplay || "Unknown"}</dd>
+        </div>
+        <div>
+          <dt>Components</dt>
+          <dd>{formatComponents(issue.components)}</dd>
+        </div>
+      </dl>
+
+      {changes.length ? (
+        <div className="change-tags card-change-tags" aria-label="Ticket changes">
+          {changes.map((label) => <span key={label}>{label}</span>)}
+        </div>
+      ) : null}
+
+      <div className="grouped-ticket-actions">
+        <div className="row-actions">
+          <a href={issue.url || "#"} target="_blank" rel="noreferrer">Jira</a>
+          <button type="button" onClick={() => onSelectTicket(issue.key || "")}>Details</button>
+        </div>
+        <button
+          type="button"
+          className="subtask-toggle"
+          disabled={!subtaskCount}
+          aria-expanded={isOpen}
+          onClick={() => onToggleSubtasks(parentId)}
+        >
+          {isOpen ? "Hide" : "Show"} {formatSubtaskCount(subtaskCount, group.subtasks.length)}
+        </button>
+      </div>
+
+      {group.matchedBySubtask ? <span className="subtask-match-note">Matched by subtask</span> : null}
+
+      {isOpen && subtaskCount ? (
+        <div className="subtask-list" aria-label={`Subtasks for ${issue.key || "ticket"}`}>
+          {group.visibleSubtasks.map((subtask) => (
+            <div
+              className={selectedKey === subtask.key ? "subtask-row selected" : "subtask-row"}
+              key={subtask.key || `${parentId}-${subtask.summary}`}
+            >
+              <div className="subtask-main">
+                <a className="table-ticket-key" href={subtask.url || "#"} target="_blank" rel="noreferrer">
+                  {subtask.key || "Subtask"}
+                </a>
+                <button
+                  className="summary-button subtask-summary"
+                  type="button"
+                  onClick={() => onSelectTicket(subtask.key || "")}
+                  aria-label={`Open details for ${subtask.key || "subtask"}: ${subtask.summary || "Untitled subtask"}`}
+                >
+                  {subtask.summary || "Untitled subtask"}
+                </button>
+              </div>
+              <div className="subtask-meta">
+                <span className="status-pill">{subtask.status || "None"}</span>
+                <span>{subtask.assignee || "Unassigned"}</span>
+                <span>{subtask.priority || "None"}</span>
+                <span>{formatComponents(subtask.components)}</span>
+              </div>
+              <div className="row-actions subtask-actions">
+                <a href={subtask.url || "#"} target="_blank" rel="noreferrer">Jira</a>
+                <button type="button" onClick={() => onSelectTicket(subtask.key || "")}>Details</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </article>
   );
 }
 
@@ -1665,6 +1995,85 @@ function groupIssuesForCards(issues: Issue[], filters: Filters, changeSets: Chan
   return grouped;
 }
 
+function buildComponentCounts(issues: Issue[]) {
+  return [...countBy(issues.flatMap((issue) => issue.components || []), (component) => component).entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]));
+}
+
+function groupTicketSections(groups: TicketGroup[]): TicketSection[] {
+  const sectionsByStatus = new Map<string, TicketGroup[]>();
+
+  for (const group of groups) {
+    const status = group.issue.status || "No status";
+    const sectionGroups = sectionsByStatus.get(status) || [];
+    sectionGroups.push(group);
+    sectionsByStatus.set(status, sectionGroups);
+  }
+
+  return [...sectionsByStatus.entries()]
+    .sort((left, right) => statusRank(left[0]) - statusRank(right[0]) || left[0].localeCompare(right[0]))
+    .map(([status, sectionGroups]) => ({
+      status,
+      groups: sectionGroups.sort(compareTicketGroups)
+    }));
+}
+
+function distributeTicketSections(sections: TicketSection[], openSubtaskParents: Set<string>, collapsedStatuses: Set<string>): TicketColumn[] {
+  const columns = Array.from({ length: CARD_COLUMN_COUNT }, (_, index) => ({ id: index, weight: 0, sections: [] as TicketSection[] }));
+
+  for (const section of sections) {
+    const target = columns.reduce((lightest, column) => column.weight < lightest.weight ? column : lightest, columns[0]);
+    target.sections.push(section);
+    target.weight += estimateTicketSectionWeight(section, openSubtaskParents, collapsedStatuses);
+  }
+
+  return columns.filter((column) => column.sections.length > 0);
+}
+
+function estimateTicketSectionWeight(section: TicketSection, openSubtaskParents: Set<string>, collapsedStatuses: Set<string>) {
+  if (collapsedStatuses.has(section.status)) {
+    return 1.2;
+  }
+
+  return 1.4 + section.groups.reduce((total, group) => total + estimateTicketGroupWeight(group, openSubtaskParents), 0);
+}
+
+function estimateTicketGroupWeight(group: TicketGroup, openSubtaskParents: Set<string>) {
+  const parentKeyValue = group.issue.key || "";
+  const openSubtaskWeight = parentKeyValue && openSubtaskParents.has(parentKeyValue) ? group.visibleSubtasks.length * 0.64 : 0;
+  const descriptionWeight = Math.min(1.1, (group.issue.summary || "").length / 150);
+  return 1 + descriptionWeight + openSubtaskWeight;
+}
+
+function compareTicketGroups(left: TicketGroup, right: TicketGroup) {
+  return priorityRank(left.issue.priority) - priorityRank(right.issue.priority)
+    || updatedTime(right.issue) - updatedTime(left.issue)
+    || (left.issue.key || "").localeCompare(right.issue.key || "");
+}
+
+function statusRank(status: string) {
+  const normalized = status.toLowerCase();
+  const index = STATUS_ORDER.findIndex((value) => value.toLowerCase() === normalized);
+  return index >= 0 ? index : STATUS_ORDER.length + normalized.charCodeAt(0);
+}
+
+function priorityRank(priority?: string) {
+  const normalized = (priority || "None").toUpperCase();
+  if (normalized === "P0") return 0;
+  if (normalized === "P1") return 1;
+  if (normalized === "P2") return 2;
+  if (normalized === "P3") return 3;
+  if (normalized === "P4") return 4;
+  if (normalized === "NONE") return 8;
+  return 6;
+}
+
+function updatedTime(issue: Issue) {
+  const value = issue.updated || issue.updatedDisplay || "";
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? time : 0;
+}
+
 function matchesActivePreset(issue: Issue, activePreset: PresetKey, changeSets: ChangeSets) {
   if (activePreset === "qa") {
     return (issue.status || "").toLowerCase().includes("qa");
@@ -1827,7 +2236,7 @@ function buildCutoverValidation(data: DashboardData | null, registry: BoardRegis
     title: "Read parity snapshot",
     status: data ? "Snapshot loaded" : "Waiting",
     detail: data
-      ? `Modern preview is reading the same Jira snapshot for ${data.version || "this board"} as the current board.`
+      ? `Automatic check: modern preview is reading the published Jira snapshot for ${data.version || "this board"}.`
       : "Waiting for dashboard-data.json before parity can be reviewed.",
     tone: data ? "good" : "neutral",
     links: [
@@ -1837,9 +2246,22 @@ function buildCutoverValidation(data: DashboardData | null, registry: BoardRegis
     ]
   };
 
+  const pagesGate: OperationsHealthItem = {
+    title: "GitHub Pages review",
+    status: data ? "Preview loaded" : "Waiting",
+    detail: data
+      ? "Automatic check: the modern GitHub Pages bundle loaded and can reach its dashboard data artifact. This does not prove manual Jira write flows."
+      : "Waiting for the published page and data artifact before the Pages review can be marked visible.",
+    tone: data ? "good" : "neutral",
+    links: [
+      { label: "Modern preview", href: modernUrl },
+      ...(repo ? [{ label: "Pages deployments", href: `https://github.com/${repo}/deployments` }] : [])
+    ]
+  };
+
   const assigneeGate: OperationsHealthItem = {
     title: "Assignee write",
-    status: !data ? "Waiting" : bridgeIsLocal ? "Local endpoint" : !bridgeEndpoint ? "Bridge missing" : "Evidence required",
+    status: !data ? "Waiting" : bridgeIsLocal ? "Local endpoint" : !bridgeEndpoint ? "Bridge missing" : "Manual evidence pending",
     detail: !data
       ? "Bridge configuration appears after the dashboard data loads."
       : bridgeIsLocal
@@ -1847,8 +2269,8 @@ function buildCutoverValidation(data: DashboardData | null, registry: BoardRegis
         : !bridgeEndpoint
           ? "No assignee dispatch endpoint is present in dashboard-data.json."
           : bridgeIsHosted
-            ? "Hosted Cloudflare route is configured. Complete this gate with a named test ticket, Jira assignee readback, and the matching Slack tag."
-            : "A non-local bridge is configured. Complete this gate with a named test ticket and Jira assignee readback.",
+            ? "Manual gate: hosted Cloudflare route is configured, but the static dashboard cannot prove a Jira write happened. Complete with a named test ticket, Jira assignee readback, and the matching Slack tag."
+            : "Manual gate: a non-local bridge is configured. Complete with a named test ticket and Jira assignee readback.",
     tone: !data ? "neutral" : bridgeIsLocal || !bridgeEndpoint ? "danger" : "attention",
     links: [
       ...(bridgeStatus ? [{ label: bridgeIsHosted ? "Cloudflare status" : "Bridge status", href: bridgeStatus }] : []),
@@ -1859,14 +2281,14 @@ function buildCutoverValidation(data: DashboardData | null, registry: BoardRegis
 
   const checklistGate: OperationsHealthItem = {
     title: "Checklist comment",
-    status: !data ? "Waiting" : commentIsLocal ? "Local endpoint" : !commentEndpoint ? "Route missing" : "Evidence required",
+    status: !data ? "Waiting" : commentIsLocal ? "Local endpoint" : !commentEndpoint ? "Route missing" : "Manual evidence pending",
     detail: !data
       ? "Checklist comment route appears after the dashboard data loads."
       : commentIsLocal
         ? "Checklist comments still point at a laptop-local endpoint. Live cutover requires the hosted Cloudflare bridge."
         : !commentEndpoint
           ? "No checklist comment endpoint can be resolved for this board."
-          : "Post one checklist comment from a named test ticket, then confirm the Jira comment body and the dashboard state remain consistent.",
+          : "Manual gate: post one checklist comment from a named test ticket, then confirm the Jira comment body and dashboard state remain consistent.",
     tone: !data ? "neutral" : commentIsLocal || !commentEndpoint ? "danger" : "attention",
     links: [
       ...(commentStatus ? [{ label: "Comment bridge", href: commentStatus }] : []),
@@ -1876,9 +2298,9 @@ function buildCutoverValidation(data: DashboardData | null, registry: BoardRegis
 
   const slackGate: OperationsHealthItem = {
     title: "Slack delivery",
-    status: repo ? "Evidence required" : "Repository unknown",
+    status: repo ? "Manual evidence pending" : "Repository unknown",
     detail: repo
-      ? "Confirm core-qa-dream-team receives the assignee-update message with the expected person tag, then confirm dashboard refresh notifications still land."
+      ? "Manual gate: confirm core-qa-dream-team receives the assignee-update message with the expected person tag, then confirm dashboard refresh notifications still land."
       : "Repository metadata is required before Slack workflows can be reviewed.",
     tone: repo ? "attention" : "neutral",
     links: repo ? [
@@ -1889,19 +2311,19 @@ function buildCutoverValidation(data: DashboardData | null, registry: BoardRegis
 
   const signoffGate: OperationsHealthItem = {
     title: "Final cutover signoff",
-    status: "Waiting on evidence",
-    detail: "Promote the modern board only after read parity, Jira writes, checklist comments, Slack notifications, and fallback notes are attached to the runbook.",
+    status: "Manual evidence pending",
+    detail: "Manual gate: promote the modern board only after read parity, Jira writes, checklist comments, Slack notifications, and fallback notes are attached to the runbook.",
     tone: "warning",
     links: [{ label: "Validation runbook", href: runbookUrl }]
   };
 
-  const items = [readGate, assigneeGate, checklistGate, slackGate, signoffGate];
+  const items = [readGate, pagesGate, assigneeGate, checklistGate, slackGate, signoffGate];
   const hasDanger = items.some((item) => item.tone === "danger");
-  const readyCount = items.filter((item) => item.tone === "good").length;
+  const automaticReadyCount = [readGate, pagesGate].filter((item) => item.tone === "good").length;
 
   return {
-    summary: hasDanger ? "Fix blockers first" : `${readyCount}/${items.length} gates ready`,
-    summaryTone: hasDanger ? "danger" : readyCount === items.length ? "good" : "attention",
+    summary: hasDanger ? "Fix blockers first" : `${automaticReadyCount}/2 automatic checks ready; 4 manual gates pending`,
+    summaryTone: hasDanger ? "danger" : automaticReadyCount === 2 ? "attention" : "neutral",
     items
   };
 }
@@ -2053,6 +2475,110 @@ function isLocalBridgeEndpoint(endpoint: string) {
 
 function isHostedBridgeEndpoint(endpoint: string) {
   return /jira-board-assignee-bridge\.dfkabir253\.workers\.dev/i.test(endpoint);
+}
+
+function normalizedPullHistory(data: DashboardData | null) {
+  if (Array.isArray(data?.pullHistory) && data.pullHistory.length) {
+    return data.pullHistory;
+  }
+
+  return data?.pullDiff ? [data.pullDiff] : [];
+}
+
+function getDiffLists(diff?: PullDiffEntry | null) {
+  return {
+    added: diff?.added || [],
+    removed: diff?.removed || [],
+    updated: diff?.updated || [],
+    statusChanges: diff?.statusChanges || []
+  };
+}
+
+function pullHasChanges(diff?: PullDiffEntry | null) {
+  const lists = getDiffLists(diff);
+  return Boolean(lists.added.length || lists.updated.length || lists.statusChanges.length || lists.removed.length);
+}
+
+function pullDisplay(value?: string) {
+  if (!value) {
+    return "Pending";
+  }
+
+  if (/no previous pull/i.test(value) || /\b(ET|UTC)\b/i.test(value) || /Z$/.test(value)) {
+    return value;
+  }
+
+  return `${value} ET`;
+}
+
+function changeHref(change: PullChange) {
+  return typeof change === "string" ? "" : change.url || "";
+}
+
+function changeSummary(change: PullChange) {
+  return typeof change === "string" ? "" : change.summary || "";
+}
+
+function changeParentLabel(change: PullChange) {
+  if (typeof change === "string" || !change.parent) {
+    return "";
+  }
+
+  if (typeof change.parent === "string") {
+    return `Parent: ${change.parent}`;
+  }
+
+  const label = change.parent.key || change.parent.summary || "";
+  return label ? `Parent: ${label}` : "";
+}
+
+function changeDetailLabels(change: PullChange) {
+  if (typeof change === "string") {
+    return [];
+  }
+
+  const details = (change.changes || []).map((entry) => {
+    const field = entry.field || "Changed";
+    const before = entry.before || entry.from || "Empty";
+    const after = entry.after || entry.to || "Empty";
+    return `${field}: ${before} -> ${after}`;
+  });
+
+  if (!details.length && (change.before || change.after)) {
+    details.push(`${change.before || "Empty"} -> ${change.after || "Empty"}`);
+  }
+
+  if (!details.length && change.status) {
+    details.push(`Status: ${change.status}`);
+  }
+
+  if (!details.length && change.updatedDisplay) {
+    details.push(`Updated ${change.updatedDisplay}`);
+  }
+
+  return details;
+}
+
+function statusChangeLabel(change: PullChange) {
+  const details = changeDetailLabels(change);
+  return details[0] || "Status changed";
+}
+
+async function copyTextToClipboard(value: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  document.body.removeChild(textarea);
 }
 
 function buildReleaseAnalytics(data: DashboardData | null, issues: Issue[], changeSets: ChangeSets): ReleaseAnalytics {
