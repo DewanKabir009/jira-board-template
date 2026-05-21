@@ -6,7 +6,7 @@ import {
   type SortingState,
   useReactTable
 } from "@tanstack/react-table";
-import { type CSSProperties, type ReactNode, useEffect, useId, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useId, useMemo, useState } from "react";
 
 type PullChange = string | {
   key?: string;
@@ -50,6 +50,8 @@ type Issue = {
   components?: string[];
   parent?: { key?: string; summary?: string } | string | null;
   description?: string;
+  descriptionHtml?: string;
+  descriptionImageCount?: number;
   testChecklist?: {
     files?: Array<{ filename?: string; id?: string }>;
     total?: number;
@@ -271,6 +273,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   const [collapsedCardStatuses, setCollapsedCardStatuses] = useState<Set<string>>(new Set());
   const [componentListCopied, setComponentListCopied] = useState(false);
   const [selectedKey, setSelectedKey] = useState("");
+  const [dialogIssueKey, setDialogIssueKey] = useState("");
   const [sorting, setSorting] = useState<SortingState>([{ id: "updatedDisplay", desc: true }]);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(25);
@@ -407,7 +410,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
       cell: ({ row }) => (
         <div className="row-actions">
           <a href={row.original.url || "#"} target="_blank" rel="noreferrer">Jira</a>
-          <button type="button" onClick={() => setSelectedKey(row.original.key || "")} aria-label={`Show details for ${row.original.key || "ticket"}`}>Details</button>
+          <button type="button" onClick={() => openTicketDialog(row.original.key || "")} aria-label={`Show details for ${row.original.key || "ticket"}`}>Details</button>
         </div>
       )
     }
@@ -432,6 +435,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   const selectedIssue = issues.find((issue) => issue.key === selectedKey)
     || (explorerView === "cards" ? ticketGroups[0]?.issue : filteredIssues[0])
     || issues[0];
+  const dialogIssue = dialogIssueKey ? issues.find((issue) => issue.key === dialogIssueKey) : undefined;
 
   useEffect(() => {
     setPageIndex(0);
@@ -476,6 +480,19 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
       return next;
     });
   }
+
+  function openTicketDialog(key: string) {
+    if (!key) {
+      return;
+    }
+
+    setSelectedKey(key);
+    setDialogIssueKey(key);
+  }
+
+  const closeTicketDialog = useCallback(() => {
+    setDialogIssueKey("");
+  }, []);
 
   function copyComponentList() {
     const value = componentCounts.map((entry) => `- ${entry[0]}`).join("\n");
@@ -601,7 +618,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
                 changeSets={changeSets}
                 openSubtaskParents={openSubtaskParents}
                 collapsedStatuses={collapsedCardStatuses}
-                onSelectTicket={(key) => setSelectedKey(key)}
+                onSelectTicket={openTicketDialog}
                 onToggleSubtasks={toggleSubtasks}
                 onToggleStatus={toggleCardStatus}
               />
@@ -670,6 +687,8 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
         </summary>
         <RolloutReadiness data={data} registry={boardRegistry} />
       </details>
+
+      <TicketDetailDialog issue={dialogIssue} data={data} changeSets={changeSets} onClose={closeTicketDialog} />
     </main>
   );
 }
@@ -1620,19 +1639,144 @@ function TicketDetail({ issue, data, changeSets }: { issue?: Issue; data: Dashbo
       <div className="change-tags">
         {changeTags.length > 0 ? changeTags.map((tag) => <span key={tag}>{tag}</span>) : <span>No pull diff change</span>}
       </div>
-      <dl className="detail-grid">
-        <div><dt>Status</dt><dd>{issue.status || "None"}</dd></div>
-        <div><dt>Assignee</dt><dd>{issue.assignee || "Unassigned"}</dd></div>
-        <div><dt>Parent</dt><dd>{parentLabel(issue) || (issue.isSubtask ? "Subtask" : "Main ticket")}</dd></div>
-        <div><dt>Checklist</dt><dd>{checklistTotal ? `${checklistTotal} cases` : "No parsed checklist"}</dd></div>
-      </dl>
-      <p className="detail-description">{descriptionPreview(issue.description)}</p>
+      <TicketDetailFields issue={issue} checklistTotal={checklistTotal} />
+      <TicketDescription issue={issue} />
       <div className="detail-actions">
         <a className="button-link primary" href={issue.url || "#"} target="_blank" rel="noreferrer">Open Jira</a>
         <a className="button-link" href={data?.dashboardUrl || "../"}>Current board actions</a>
       </div>
       <ChecklistWorkspace issue={issue} data={data} />
     </aside>
+  );
+}
+
+function TicketDetailDialog({
+  issue,
+  data,
+  changeSets,
+  onClose
+}: {
+  issue?: Issue;
+  data: DashboardData | null;
+  changeSets: ChangeSets;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    if (!issue) {
+      return undefined;
+    }
+
+    document.body.classList.add("modal-open");
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.classList.remove("modal-open");
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [issue, onClose]);
+
+  if (!issue) {
+    return null;
+  }
+
+  const checklistTotal = issue.testChecklist?.total ?? issue.testChecklist?.testCases?.length ?? 0;
+  const changeTags = changeLabels(issue.key || "", changeSets);
+
+  return (
+    <div className="ticket-detail-modal" role="presentation">
+      <button className="ticket-detail-backdrop" type="button" aria-label="Close ticket details" onClick={onClose}></button>
+      <section className="ticket-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="ticket-detail-dialog-title">
+        <header className="ticket-detail-modal-header">
+          <div>
+            <div className="ticket-detail-modal-title">
+              <a href={issue.url || "#"} target="_blank" rel="noreferrer">{issue.key || "Ticket"}</a>
+              <h2 id="ticket-detail-dialog-title">Ticket details</h2>
+            </div>
+            <p className="ticket-detail-modal-summary">{issue.summary || "Untitled ticket"}</p>
+            <div className="description-modal-meta" aria-label="Ticket metadata">
+              <span>{issue.type || "Ticket"}</span>
+              <span>Status: {issue.status || "No status"}</span>
+              <span>Priority: {issue.priority || "None"}</span>
+              <span>Updated: {issue.updatedDisplay || "Unknown"}</span>
+              <span>Images: {Number(issue.descriptionImageCount || 0)}</span>
+              <a href={issue.url || "#"} target="_blank" rel="noreferrer">Open Jira</a>
+            </div>
+          </div>
+          <button className="ticket-detail-close" type="button" onClick={onClose} aria-label="Close ticket details">x</button>
+        </header>
+
+        <div className="ticket-detail-modal-body">
+          <div className="change-tags">
+            {changeTags.length > 0 ? changeTags.map((tag) => <span key={tag}>{tag}</span>) : <span>No pull diff change</span>}
+          </div>
+          <TicketDetailFields issue={issue} checklistTotal={checklistTotal} />
+          <TicketDescription issue={issue} />
+          <ChecklistWorkspace issue={issue} data={data} />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function TicketDetailFields({ issue, checklistTotal }: { issue: Issue; checklistTotal: number }) {
+  return (
+    <dl className="detail-grid">
+      <div><dt>Status</dt><dd>{issue.status || "None"}</dd></div>
+      <div><dt>Assignee</dt><dd>{issue.assignee || "Unassigned"}</dd></div>
+      <div><dt>Parent</dt><dd>{parentLabel(issue) || (issue.isSubtask ? "Subtask" : "Main ticket")}</dd></div>
+      <div><dt>Checklist</dt><dd>{checklistTotal ? `${checklistTotal} cases` : "No parsed checklist"}</dd></div>
+    </dl>
+  );
+}
+
+function TicketDescription({ issue }: { issue: Issue }) {
+  const html = normalizeDescriptionHtml(issue.descriptionHtml?.trim() || "");
+  const imageCount = Number(issue.descriptionImageCount || 0);
+  const hasContent = html || (issue.description || "").trim() || imageCount > 0;
+
+  return (
+    <section className={hasContent ? "description-panel" : "description-panel is-empty"} aria-label={`Description for ${issue.key || "ticket"}`}>
+      <div className="description-panel-heading">
+        <h3>Description</h3>
+        <span>{imageCount ? `${imageCount} image${imageCount === 1 ? "" : "s"}` : "Full text"}</span>
+      </div>
+      {html ? <div className="description-html" dangerouslySetInnerHTML={{ __html: html }} /> : <DescriptionText description={issue.description} />}
+      {!html && imageCount ? (
+        <p className="description-note">{imageCount} embedded Jira image reference{imageCount === 1 ? " is" : "s are"} present, but rendered image markup was not included in this dashboard artifact.</p>
+      ) : null}
+    </section>
+  );
+}
+
+function normalizeDescriptionHtml(html: string) {
+  return html.replace(/\b(src|href)=(["'])assets\//g, (_match, attribute: string, quote: string) => `${attribute}=${quote}../assets/`);
+}
+
+function DescriptionText({ description }: { description?: string }) {
+  const normalized = (description || "").trim();
+
+  if (!normalized) {
+    return <p className="description-empty">No description text is available in the artifact.</p>;
+  }
+
+  return (
+    <>
+      {normalized.split(/\n{2,}/).map((paragraph, paragraphIndex) => (
+        <p key={`${paragraphIndex}-${paragraph.slice(0, 18)}`}>
+          {paragraph.split(/\n/).map((line, lineIndex) => (
+            <span key={`${paragraphIndex}-${lineIndex}`}>
+              {lineIndex > 0 ? <br /> : null}
+              {line}
+            </span>
+          ))}
+        </p>
+      ))}
+    </>
   );
 }
 
@@ -2711,15 +2855,6 @@ function parentKey(issue: Issue) {
   }
 
   return issue.parent.key || "";
-}
-
-function descriptionPreview(description?: string) {
-  if (!description) {
-    return "No description text is available in the artifact.";
-  }
-
-  const normalized = description.replace(/\s+/g, " ").trim();
-  return normalized.length > 360 ? `${normalized.slice(0, 360)}...` : normalized;
 }
 
 function bridgeOrigin(data: DashboardData | null) {

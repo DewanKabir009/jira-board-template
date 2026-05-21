@@ -39,6 +39,10 @@ body {
   color: var(--text);
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
 a {
   color: inherit;
 }
@@ -2005,8 +2009,291 @@ h3 {
   line-height: 1.55;
 }
 
+.description-panel {
+  display: grid;
+  gap: 14px;
+  max-height: min(58vh, 640px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 251, 255, 0.84));
+  color: #1d3141;
+  padding: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.description-panel-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
+}
+
+.description-panel-heading h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.description-panel-heading span {
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--blue-soft), var(--green-soft));
+  color: var(--blue);
+  font-size: 0.76rem;
+  font-weight: 900;
+  padding: 5px 9px;
+}
+
+.description-html {
+  min-width: 0;
+}
+
+.description-panel h3,
+.description-panel h4,
+.description-panel h5,
+.description-panel p,
+.description-panel ul,
+.description-panel ol,
+.description-panel pre,
+.description-panel blockquote,
+.description-panel figure {
+  margin-top: 0;
+}
+
+.description-panel h3,
+.description-panel h4,
+.description-panel h5 {
+  color: var(--text);
+  font-size: 0.96rem;
+  line-height: 1.35;
+}
+
+.description-panel p,
+.description-panel li,
+.description-panel figcaption,
+.description-note,
+.description-empty {
+  color: #2e4558;
+  font-size: 0.92rem;
+}
+
+.description-panel ul,
+.description-panel ol {
+  padding-left: 22px;
+}
+
+.description-panel code {
+  border-radius: 6px;
+  background: rgba(0, 95, 204, 0.08);
+  color: var(--blue);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 0.84em;
+  padding: 2px 5px;
+}
+
+.description-panel pre {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #082238;
+  color: #f5fbff;
+  padding: 12px;
+}
+
+.description-panel pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.description-panel a {
+  color: var(--blue);
+  font-weight: 850;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.description-panel table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow-wrap: anywhere;
+}
+
+.description-panel th,
+.description-panel td {
+  border: 1px solid var(--line);
+  padding: 8px;
+  vertical-align: top;
+}
+
+.description-media-group {
+  display: grid;
+  gap: 12px;
+}
+
+.description-media,
+.description-panel figure {
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 9px;
+}
+
+.description-panel img {
+  display: block;
+  width: 100%;
+  max-height: 560px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #f7fbff;
+}
+
+.description-media figcaption,
+.description-media-missing {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.description-panel.is-empty {
+  border-style: dashed;
+}
+
 .detail-actions {
   flex-wrap: wrap;
+}
+
+.ticket-detail-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.ticket-detail-backdrop {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  background:
+    radial-gradient(circle at 20% 12%, rgba(0, 95, 204, 0.22), transparent 32%),
+    rgba(4, 20, 32, 0.58);
+  cursor: pointer;
+}
+
+.ticket-detail-dialog {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(1120px, calc(100vw - 36px));
+  max-height: min(88vh, 920px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 34px 90px rgba(0, 42, 69, 0.34);
+}
+
+.ticket-detail-modal-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+  border-bottom: 1px solid var(--line);
+  background:
+    linear-gradient(135deg, rgba(220, 236, 255, 0.82), rgba(216, 255, 232, 0.52)),
+    #ffffff;
+  padding: 16px 18px;
+}
+
+.ticket-detail-modal-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  align-items: center;
+  margin-bottom: 7px;
+}
+
+.ticket-detail-modal-title a {
+  color: var(--blue);
+  font-weight: 950;
+  text-decoration: none;
+}
+
+.ticket-detail-modal-title h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.15rem;
+  line-height: 1.25;
+}
+
+.ticket-detail-modal-summary {
+  margin: 0;
+  color: #263f53;
+  font-size: 0.94rem;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+.description-modal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.description-modal-meta span,
+.description-modal-meta a {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #314b61;
+  font-size: 0.76rem;
+  font-weight: 850;
+  padding: 4px 8px;
+  text-decoration: none;
+}
+
+.ticket-detail-close {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.ticket-detail-modal-body {
+  display: grid;
+  gap: 16px;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
+}
+
+.ticket-detail-modal-body .description-panel {
+  max-height: none;
+  overflow: visible;
+  background: #ffffff;
+}
+
+.ticket-detail-modal-body .description-panel img {
+  max-height: min(72vh, 760px);
 }
 
 .checklist-workspace {
@@ -2466,6 +2753,38 @@ h3 {
   .migration-rollout-details > summary span:last-child {
     text-align: left;
     white-space: normal;
+  }
+
+  .ticket-detail-modal {
+    align-items: stretch;
+    padding: 10px;
+  }
+
+  .ticket-detail-dialog {
+    width: 100%;
+    max-height: calc(100vh - 20px);
+  }
+
+  .ticket-detail-modal-header {
+    padding: 12px;
+  }
+
+  .ticket-detail-modal-body {
+    padding: 12px;
+  }
+
+  .description-panel {
+    max-height: 64vh;
+  }
+
+  .description-panel ul,
+  .description-panel ol {
+    padding-left: 16px;
+  }
+
+  .description-panel ul ul,
+  .description-panel ol ol {
+    padding-left: 14px;
   }
 
   .table-summary label {
