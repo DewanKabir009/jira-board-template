@@ -631,7 +631,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
           <div className="hero-actions" aria-label="Board links">
             <a className="button-link primary" href={data?.dashboardUrl || "../"}>Current board</a>
             <a className="button-link" href={data?.jiraFilterUrl || "#"} target="_blank" rel="noreferrer">Jira filter</a>
-            <a className="button-link" href={bridgeOrigin(data)} target="_blank" rel="noreferrer">Cloudflare bridge</a>
+            <a className="button-link" href={bridgeEntryUrl(data)} target="_blank" rel="noreferrer">Cloudflare bridge</a>
           </div>
         </div>
 
@@ -3136,12 +3136,12 @@ function parentKey(issue: Issue) {
   return issue.parent.key || "";
 }
 
-function bridgeOrigin(data: DashboardData | null) {
+function bridgeEntryUrl(data: DashboardData | null) {
   if (!data?.assigneeDispatchEndpoint) {
     return "#";
   }
 
-  return new URL(data.assigneeDispatchEndpoint).origin;
+  return bridgeStatusUrl(data.assigneeDispatchEndpoint);
 }
 
 function sortLabel(value: false | "asc" | "desc") {
