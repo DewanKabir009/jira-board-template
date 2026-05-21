@@ -1024,9 +1024,7 @@ h3 {
 .analytics-totals,
 .analytics-insights,
 .chart-heading,
-.bar-row,
-.movement-row,
-.movement-legend {
+.bar-row {
   display: flex;
   gap: 12px;
   align-items: center;
@@ -1084,7 +1082,7 @@ h3 {
 
 .analytics-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -1111,22 +1109,19 @@ h3 {
   line-height: 1.4;
 }
 
-.bar-list,
-.movement-list {
+.bar-list {
   display: grid;
   gap: 9px;
 }
 
-.bar-row,
-.movement-row {
+.bar-row {
   display: grid;
   grid-template-columns: minmax(88px, 0.42fr) minmax(90px, 1fr) auto;
   gap: 9px;
   min-height: 26px;
 }
 
-.bar-row span,
-.movement-row span {
+.bar-row span {
   min-width: 0;
   overflow: hidden;
   color: var(--muted);
@@ -1136,13 +1131,11 @@ h3 {
   white-space: nowrap;
 }
 
-.bar-row strong,
-.movement-row strong {
+.bar-row strong {
   font-size: 0.84rem;
 }
 
-.bar-track,
-.movement-track {
+.bar-track {
   overflow: hidden;
   height: 12px;
   border-radius: 999px;
@@ -1156,66 +1149,115 @@ h3 {
   border-radius: inherit;
 }
 
-.bar-fill.blue,
-.movement-segment.updated {
+.bar-fill.blue {
   background: var(--sky);
 }
 
-.bar-fill.green,
-.movement-segment.added {
+.bar-fill.green {
   background: var(--green);
 }
 
-.bar-fill.amber,
-.movement-segment.moved {
+.bar-fill.amber {
   background: var(--amber);
 }
 
-.bar-fill.rose,
-.movement-segment.removed {
+.bar-fill.rose {
   background: var(--rose);
 }
 
-.movement-legend {
-  flex-wrap: wrap;
+.priority-pie-card {
+  gap: 14px;
+}
+
+.priority-pie-layout {
+  display: grid;
+  grid-template-columns: minmax(132px, 0.78fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+}
+
+.priority-pie {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(172px, 100%);
+  aspect-ratio: 1;
+  justify-self: center;
+  border: 1px solid rgba(0, 95, 204, 0.18);
+  border-radius: 999px;
+  background: conic-gradient(var(--priority-pie-gradient));
+  box-shadow: 0 18px 42px rgba(0, 95, 204, 0.2), inset 0 0 0 1px rgba(255, 255, 255, 0.58);
+}
+
+.priority-pie::before {
+  content: "";
+  position: absolute;
+  inset: 19%;
+  border-radius: inherit;
+  background: linear-gradient(180deg, #ffffff, rgba(246, 253, 255, 0.96));
+  box-shadow: inset 0 0 0 1px rgba(0, 95, 204, 0.13), 0 10px 24px rgba(16, 54, 86, 0.12);
+}
+
+.priority-pie-center {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 2px;
+  max-width: 78px;
+  color: var(--ink);
+  line-height: 1.1;
+  text-align: center;
+}
+
+.priority-pie-center strong {
+  overflow: hidden;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.priority-pie-center span {
+  color: var(--blue);
+  font-size: 1.2rem;
+  font-weight: 950;
+}
+
+.priority-pie-legend {
+  display: grid;
   gap: 8px;
 }
 
-.movement-legend span {
-  border-radius: 999px;
-  font-size: 0.72rem;
+.priority-pie-legend-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid rgba(0, 95, 204, 0.13);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--muted);
+  font-size: 0.8rem;
   font-weight: 850;
-  padding: 4px 8px;
+  padding: 7px 8px;
 }
 
-.movement-legend .added {
-  background: var(--green-soft);
-  color: var(--green);
+.priority-pie-legend-row span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.movement-legend .updated {
-  background: var(--sky-soft);
-  color: var(--sky);
+.priority-pie-legend-row strong {
+  color: var(--ink);
 }
 
-.movement-legend .moved {
-  background: var(--amber-soft);
-  color: var(--amber);
-}
-
-.movement-legend .removed {
-  background: var(--rose-soft);
-  color: var(--rose);
-}
-
-.movement-track {
-  display: flex;
-}
-
-.movement-segment {
-  width: var(--segment-width);
-  min-width: 0;
-  height: 100%;
+.priority-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--priority-color);
+  box-shadow: 0 0 0 3px rgba(0, 95, 204, 0.08);
 }
 
 .analytics-table {
@@ -2804,9 +2846,17 @@ h3 {
     .analytics-heading,
     .explorer-toolbar,
     .explorer-toolbar-actions,
-  .detail-heading {
+    .detail-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .priority-pie-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .priority-pie {
+    width: min(190px, 72vw);
   }
 
   .explorer-toolbar-actions,

@@ -205,15 +205,6 @@ type DistributionRow = {
   tone: AnalyticsTone;
 };
 
-type MovementRow = {
-  label: string;
-  added: number;
-  updated: number;
-  moved: number;
-  removed: number;
-  total: number;
-};
-
 type ReleaseAnalytics = {
   issueTotal: number;
   mainTotal: number;
@@ -222,7 +213,6 @@ type ReleaseAnalytics = {
   assignees: DistributionRow[];
   priorities: DistributionRow[];
   components: DistributionRow[];
-  movements: MovementRow[];
   insights: string[];
 };
 
@@ -1499,8 +1489,7 @@ function ReleaseAnalyticsBand({ analytics }: { analytics: ReleaseAnalytics }) {
           description="Current ticket ownership by assignee."
           rows={analytics.assignees}
         />
-        <MovementChart rows={analytics.movements} />
-        <DistributionChart
+        <PriorityPieChart
           title="Priority mix"
           description="Current release risk split by Jira priority."
           rows={analytics.priorities}
@@ -1533,6 +1522,47 @@ function DistributionChart({ title, description, rows }: { title: string; descri
           </div>
         )) : <p className="analytics-empty">No data available.</p>}
       </div>
+      <DistributionTable title={title} rows={rows} />
+    </article>
+  );
+}
+
+function PriorityPieChart({ title, description, rows }: { title: string; description: string; rows: DistributionRow[] }) {
+  const topPriority = rows[0];
+  const gradient = priorityPieGradient(rows);
+
+  return (
+    <article className="analytics-chart priority-pie-card">
+      <div className="chart-heading">
+        <h3>{title}</h3>
+        <p>{description}</p>
+      </div>
+      {rows.length ? (
+        <div className="priority-pie-layout" aria-hidden="true">
+          <div className="priority-pie" style={{ "--priority-pie-gradient": gradient } as CSSProperties}>
+            <div className="priority-pie-center">
+              <strong>{topPriority?.label || "None"}</strong>
+              <span>{topPriority ? Math.round(topPriority.share) : 0}%</span>
+            </div>
+          </div>
+          <div className="priority-pie-legend">
+            {rows.map((row, index) => (
+              <div className="priority-pie-legend-row" key={row.label}>
+                <span className="priority-dot" style={{ "--priority-color": priorityColor(row.label, index) } as CSSProperties} />
+                <span>{row.label}</span>
+                <strong>{row.value}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : <p className="analytics-empty">No data available.</p>}
+      <DistributionTable title={title} rows={rows} />
+    </article>
+  );
+}
+
+function DistributionTable({ title, rows }: { title: string; rows: DistributionRow[] }) {
+  return (
       <table className="analytics-table">
         <caption>{title}</caption>
         <thead>
@@ -1556,68 +1586,43 @@ function DistributionChart({ title, description, rows }: { title: string; descri
           )}
         </tbody>
       </table>
-    </article>
   );
 }
 
-function MovementChart({ rows }: { rows: MovementRow[] }) {
-  const maxTotal = Math.max(1, ...rows.map((row) => row.total));
+function priorityPieGradient(rows: DistributionRow[]) {
+  if (!rows.length) {
+    return "var(--surface-muted) 0% 100%";
+  }
 
-  return (
-    <article className="analytics-chart movement-chart">
-      <div className="chart-heading">
-        <h3>Status movement history</h3>
-        <p>Recent pull-diff activity from the retained dashboard history.</p>
-      </div>
-      <div className="movement-legend" aria-hidden="true">
-        <span className="added">Added</span>
-        <span className="updated">Updated</span>
-        <span className="moved">Status moved</span>
-        <span className="removed">Removed</span>
-      </div>
-      <div className="movement-list" aria-hidden="true">
-        {rows.length ? rows.map((row) => (
-          <div className="movement-row" key={row.label}>
-            <span>{row.label}</span>
-            <div className="movement-track">
-              <span className="movement-segment added" style={{ "--segment-width": `${(row.added / maxTotal) * 100}%` } as CSSProperties} />
-              <span className="movement-segment updated" style={{ "--segment-width": `${(row.updated / maxTotal) * 100}%` } as CSSProperties} />
-              <span className="movement-segment moved" style={{ "--segment-width": `${(row.moved / maxTotal) * 100}%` } as CSSProperties} />
-              <span className="movement-segment removed" style={{ "--segment-width": `${(row.removed / maxTotal) * 100}%` } as CSSProperties} />
-            </div>
-            <strong>{row.total}</strong>
-          </div>
-        )) : <p className="analytics-empty">No pull history yet.</p>}
-      </div>
-      <table className="analytics-table">
-        <caption>Status movement history</caption>
-        <thead>
-          <tr>
-            <th scope="col">Pull</th>
-            <th scope="col">Added</th>
-            <th scope="col">Updated</th>
-            <th scope="col">Moved</th>
-            <th scope="col">Removed</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length ? rows.map((row) => (
-            <tr key={row.label}>
-              <td>{row.label}</td>
-              <td>{row.added}</td>
-              <td>{row.updated}</td>
-              <td>{row.moved}</td>
-              <td>{row.removed}</td>
-            </tr>
-          )) : (
-            <tr>
-              <td colSpan={5}>No pull history yet.</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </article>
-  );
+  let cursor = 0;
+  return rows.map((row, index) => {
+    const start = cursor;
+    const end = index === rows.length - 1 ? 100 : Math.min(100, cursor + row.share);
+    cursor = end;
+    return `${priorityColor(row.label, index)} ${start.toFixed(2)}% ${end.toFixed(2)}%`;
+  }).join(", ");
+}
+
+function priorityColor(label: string, index: number) {
+  const normalized = label.trim().toUpperCase();
+  const priorityColors: Record<string, string> = {
+    BLOCKER: "var(--rose)",
+    CRITICAL: "var(--rose)",
+    HIGHEST: "var(--rose)",
+    HIGH: "var(--amber)",
+    MEDIUM: "var(--blue)",
+    LOW: "var(--green)",
+    LOWEST: "var(--sky)",
+    NONE: "var(--muted)",
+    P0: "var(--rose)",
+    P1: "var(--amber)",
+    P2: "var(--blue)",
+    P3: "var(--green)",
+    P4: "var(--sky)"
+  };
+  const palette = ["var(--rose)", "var(--amber)", "var(--blue)", "var(--green)", "var(--sky)", "var(--muted)"];
+
+  return priorityColors[normalized] || palette[index % palette.length];
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -3004,29 +3009,13 @@ async function copyTextToClipboard(value: string) {
   document.body.removeChild(textarea);
 }
 
-function buildReleaseAnalytics(data: DashboardData | null, issues: Issue[], changeSets: ChangeSets): ReleaseAnalytics {
+function buildReleaseAnalytics(_data: DashboardData | null, issues: Issue[], changeSets: ChangeSets): ReleaseAnalytics {
   const mainTotal = issues.filter((issue) => !issue.isSubtask).length;
   const subtaskTotal = issues.length - mainTotal;
-  const pullHistory = (Array.isArray(data?.pullHistory) && data?.pullHistory.length ? data?.pullHistory : data?.pullDiff ? [data.pullDiff] : [])
-    .filter(Boolean) as PullDiffEntry[];
 
   const assignees = toDistributionRows(countBy(issues, (issue) => issue.assignee || "Unassigned"), issues.length, 6, "blue");
   const priorities = toDistributionRows(countBy(issues, (issue) => issue.priority || "None"), issues.length, 6, "amber");
   const components = toDistributionRows(countBy(issues.flatMap((issue) => issue.components?.length ? issue.components : ["No component"]), (component) => component), issues.length, 7, "green");
-  const movements = pullHistory.slice(0, 8).reverse().map((entry) => {
-    const added = entry.added?.length || 0;
-    const updated = entry.updated?.length || 0;
-    const moved = entry.statusChanges?.length || 0;
-    const removed = entry.removed?.length || 0;
-    return {
-      label: movementLabel(entry),
-      added,
-      updated,
-      moved,
-      removed,
-      total: added + updated + moved + removed
-    };
-  });
 
   return {
     issueTotal: issues.length,
@@ -3036,12 +3025,10 @@ function buildReleaseAnalytics(data: DashboardData | null, issues: Issue[], chan
     assignees,
     priorities,
     components,
-    movements,
     insights: [
       insightForTop("Ownership", assignees, "has the highest current load"),
       insightForTop("Priority", priorities, "is the largest priority group"),
-      insightForTop("Component", components, "has the most release concentration"),
-      latestMovementInsight(pullHistory)
+      insightForTop("Component", components, "has the most release concentration")
     ]
   };
 }
@@ -3074,25 +3061,6 @@ function insightForTop(label: string, rows: DistributionRow[], suffix: string) {
   }
 
   return `${label}: ${top.label} ${suffix} (${top.value}).`;
-}
-
-function latestMovementInsight(history: PullDiffEntry[]) {
-  const latest = history[0];
-  if (!latest) {
-    return "Movement: pull history is not available yet.";
-  }
-
-  const total = (latest.added?.length || 0) + (latest.updated?.length || 0) + (latest.statusChanges?.length || 0) + (latest.removed?.length || 0);
-  if (latest.isBaseline) {
-    return "Movement: latest pull is the baseline snapshot.";
-  }
-
-  return total ? `Movement: latest pull recorded ${total} ticket changes.` : "Movement: latest pull recorded no ticket changes.";
-}
-
-function movementLabel(entry: PullDiffEntry) {
-  const label = entry.currentPulledAtDisplay || entry.currentPulledAt || "Pull";
-  return label.replace(/,\s*\d{4}/, "");
 }
 
 function formatComponents(components?: string[]) {
