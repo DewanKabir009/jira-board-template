@@ -1,6 +1,5 @@
 import {
   type ColumnDef,
-  flexRender,
   getCoreRowModel,
   getSortedRowModel,
   type SortingState,
@@ -530,15 +529,14 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
     getSortedRowModel: getSortedRowModel()
   });
 
-  const sortedRows = table.getRowModel().rows;
-  const tablePageCount = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+  const tablePageCount = Math.max(1, Math.ceil(ticketGroups.length / pageSize));
   const cardPageCount = Math.max(1, Math.ceil(ticketGroups.length / pageSize));
   const pageCount = explorerView === "cards" ? cardPageCount : tablePageCount;
   const safePageIndex = Math.min(pageIndex, pageCount - 1);
-  const visibleRows = sortedRows.slice(safePageIndex * pageSize, safePageIndex * pageSize + pageSize);
   const visibleTicketGroups = ticketGroups.slice(safePageIndex * pageSize, safePageIndex * pageSize + pageSize);
   const selectedIssue = issues.find((issue) => issue.key === selectedKey)
-    || (explorerView === "cards" ? ticketGroups[0]?.issue : filteredIssues[0])
+    || ticketGroups[0]?.issue
+    || filteredIssues[0]
     || issues[0];
   const dialogIssue = dialogIssueKey ? issues.find((issue) => issue.key === dialogIssueKey) : undefined;
 
@@ -700,13 +698,13 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
 
         {loadError ? <p className="load-error">{loadError}</p> : null}
 
-        <div className={explorerView === "cards" ? "explorer-body cards-mode" : "explorer-body"}>
+        <div className={explorerView === "cards" ? "explorer-body cards-mode" : "explorer-body table-mode"}>
           <div className={explorerView === "cards" ? "table-card ticket-board-card" : "table-card"}>
             <div className="table-summary">
               <span>
                 {explorerView === "cards"
                   ? `${ticketGroups.length} main tickets / ${visibleSubtaskCount} subtasks`
-                  : `${filteredIssues.length} matching tickets`}
+                  : `${ticketGroups.length} main tickets / ${visibleSubtaskCount} subtasks`}
               </span>
               <SelectFilter
                 label="Rows"
@@ -731,45 +729,17 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
                 onToggleStatus={toggleCardStatus}
               />
             ) : (
-              <div className="ticket-table-wrap">
-                <table className="ticket-table">
-                  <thead>
-                    {table.getHeaderGroups().map((headerGroup) => (
-                      <tr key={headerGroup.id}>
-                        {headerGroup.headers.map((header) => (
-                          <th key={header.id} scope="col" aria-sort={header.isPlaceholder ? undefined : ariaSort(header.column.getIsSorted())}>
-                            {header.isPlaceholder ? null : (
-                              <button
-                                type="button"
-                                className="column-sort"
-                                disabled={!header.column.getCanSort()}
-                                onClick={header.column.getToggleSortingHandler()}
-                                aria-label={`Sort by ${String(header.column.columnDef.header || header.id)}`}
-                              >
-                                {flexRender(header.column.columnDef.header, header.getContext())}
-                                <span>{sortLabel(header.column.getIsSorted())}</span>
-                              </button>
-                            )}
-                          </th>
-                        ))}
-                      </tr>
-                    ))}
-                  </thead>
-                  <tbody>
-                    {visibleRows.map((row) => (
-                      <tr
-                        key={row.id}
-                        className={row.original.key === selectedIssue?.key ? "selected-row" : ""}
-                        aria-selected={row.original.key === selectedIssue?.key}
-                      >
-                        {row.getVisibleCells().map((cell) => (
-                          <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <TicketTableView
+                groups={visibleTicketGroups}
+                selectedKey={selectedIssue?.key || ""}
+                changeSets={changeSets}
+                openSubtaskParents={openSubtaskParents}
+                assignmentOptions={assignableAssigneeOptions}
+                assignmentStates={assignmentStateByKey}
+                onSelectTicket={openTicketDialog}
+                onAssign={submitAssigneeChange}
+                onToggleSubtasks={toggleSubtasks}
+              />
             )}
             <div className="pagination-bar">
               <button type="button" disabled={safePageIndex === 0} onClick={() => setPageIndex((value) => Math.max(0, value - 1))}>Previous</button>
@@ -1043,6 +1013,199 @@ function PullStatusChange({ change, index }: { change: PullChange; index: number
   const details = statusChangeLabel(change);
   return (
     <PullIssue change={{ ...(typeof change === "string" ? { key: change } : change), summary: changeSummary(change) || details }} index={index} showDetails />
+  );
+}
+
+function TicketTableView({
+  groups,
+  selectedKey,
+  changeSets,
+  openSubtaskParents,
+  assignmentOptions,
+  assignmentStates,
+  onSelectTicket,
+  onAssign,
+  onToggleSubtasks
+}: {
+  groups: TicketGroup[];
+  selectedKey: string;
+  changeSets: ChangeSets;
+  openSubtaskParents: Set<string>;
+  assignmentOptions: SelectOption[];
+  assignmentStates: Record<string, AssignmentRequestState>;
+  onSelectTicket: (key: string) => void;
+  onAssign: (issue: Issue, assignee: string) => void | Promise<void>;
+  onToggleSubtasks: (key: string) => void;
+}) {
+  if (!groups.length) {
+    return (
+      <div className="ticket-table-empty">
+        <p>No matching parent tickets.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grouped-ticket-table" role="table" aria-label="Grouped ticket table">
+      <div className="grouped-table-header" role="row">
+        <span role="columnheader">Ticket</span>
+        <span role="columnheader">Summary</span>
+        <span role="columnheader">Status</span>
+        <span role="columnheader">Assignee</span>
+        <span role="columnheader">Priority</span>
+        <span role="columnheader">Components</span>
+        <span role="columnheader">Updated</span>
+        <span role="columnheader">Actions</span>
+      </div>
+      {groups.map((group, index) => (
+        <TicketTableGroup
+          group={group}
+          index={index}
+          selectedKey={selectedKey}
+          changeSets={changeSets}
+          openSubtaskParents={openSubtaskParents}
+          assignmentOptions={assignmentOptions}
+          assignmentStates={assignmentStates}
+          onSelectTicket={onSelectTicket}
+          onAssign={onAssign}
+          onToggleSubtasks={onToggleSubtasks}
+          key={group.issue.key || `table-group-${index}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function TicketTableGroup({
+  group,
+  index,
+  selectedKey,
+  changeSets,
+  openSubtaskParents,
+  assignmentOptions,
+  assignmentStates,
+  onSelectTicket,
+  onAssign,
+  onToggleSubtasks
+}: {
+  group: TicketGroup;
+  index: number;
+  selectedKey: string;
+  changeSets: ChangeSets;
+  openSubtaskParents: Set<string>;
+  assignmentOptions: SelectOption[];
+  assignmentStates: Record<string, AssignmentRequestState>;
+  onSelectTicket: (key: string) => void;
+  onAssign: (issue: Issue, assignee: string) => void | Promise<void>;
+  onToggleSubtasks: (key: string) => void;
+}) {
+  const issue = group.issue;
+  const parentId = issue.key || `table-ticket-${index}`;
+  const isOpen = openSubtaskParents.has(parentId);
+  const subtaskCount = group.visibleSubtasks.length;
+  const changes = changeLabels(issue.key || "", changeSets);
+
+  return (
+    <section className={selectedKey === issue.key ? "table-ticket-group selected" : "table-ticket-group"} role="rowgroup">
+      <div className="grouped-table-row parent-ticket-row" role="row">
+        <div className="grouped-table-cell ticket-cell" role="cell" data-label="Ticket">
+          <a className="table-ticket-key" href={issue.url || "#"} target="_blank" rel="noreferrer">
+            {issue.key || "Ticket"}
+          </a>
+          <span>{issue.type || "Issue"}</span>
+        </div>
+        <div className="grouped-table-cell summary-cell" role="cell" data-label="Summary">
+          <button
+            className="summary-button"
+            type="button"
+            onClick={() => onSelectTicket(issue.key || "")}
+            aria-label={`Open details for ${issue.key || "ticket"}: ${issue.summary || "Untitled ticket"}`}
+          >
+            {issue.summary || "Untitled ticket"}
+          </button>
+          {changes.length ? (
+            <div className="change-tags table-change-tags" aria-label="Ticket changes">
+              {changes.map((label) => <span key={label}>{label}</span>)}
+            </div>
+          ) : null}
+        </div>
+        <div className="grouped-table-cell" role="cell" data-label="Status"><span className="status-pill">{issue.status || "None"}</span></div>
+        <div className="grouped-table-cell" role="cell" data-label="Assignee"><AssigneeBadge issue={issue} /></div>
+        <div className="grouped-table-cell" role="cell" data-label="Priority"><span className="priority-pill">{issue.priority || "None"}</span></div>
+        <div className="grouped-table-cell component-text" role="cell" data-label="Components">{formatComponents(issue.components)}</div>
+        <div className="grouped-table-cell muted-cell" role="cell" data-label="Updated">{issue.updatedDisplay || "Unknown"}</div>
+        <div className="grouped-table-cell grouped-table-actions" role="cell" data-label="Actions">
+          <div className="table-action-buttons">
+            <a href={issue.url || "#"} target="_blank" rel="noreferrer">Jira</a>
+            <button type="button" onClick={() => onSelectTicket(issue.key || "")}>Details</button>
+          </div>
+          <button
+            type="button"
+            className="table-subtask-toggle"
+            disabled={!subtaskCount}
+            aria-expanded={isOpen}
+            onClick={() => onToggleSubtasks(parentId)}
+          >
+            {isOpen ? "Hide" : "Show"} {formatSubtaskCount(subtaskCount, group.subtasks.length)}
+          </button>
+        </div>
+      </div>
+      <div className="grouped-table-assign-row">
+        <AssigneeAssignmentControl
+          issue={issue}
+          options={assignmentOptions}
+          request={assignmentStates[issue.key || ""]}
+          onAssign={onAssign}
+          compact
+        />
+      </div>
+      {isOpen && subtaskCount ? (
+        <div className="grouped-table-subtasks" aria-label={`Subtasks for ${issue.key || "ticket"}`}>
+          {group.visibleSubtasks.map((subtask) => (
+            <div className="grouped-table-subtask-item" key={subtask.key || `${parentId}-${subtask.summary}`}>
+              <div className={selectedKey === subtask.key ? "grouped-table-row subtask-table-row selected" : "grouped-table-row subtask-table-row"} role="row">
+                <div className="grouped-table-cell ticket-cell" role="cell" data-label="Ticket">
+                  <a className="table-ticket-key" href={subtask.url || "#"} target="_blank" rel="noreferrer">
+                    {subtask.key || "Subtask"}
+                  </a>
+                  <span>Subtask</span>
+                </div>
+                <div className="grouped-table-cell summary-cell" role="cell" data-label="Summary">
+                  <button
+                    className="summary-button"
+                    type="button"
+                    onClick={() => onSelectTicket(subtask.key || "")}
+                    aria-label={`Open details for ${subtask.key || "subtask"}: ${subtask.summary || "Untitled subtask"}`}
+                  >
+                    {subtask.summary || "Untitled subtask"}
+                  </button>
+                </div>
+                <div className="grouped-table-cell" role="cell" data-label="Status"><span className="status-pill">{subtask.status || "None"}</span></div>
+                <div className="grouped-table-cell" role="cell" data-label="Assignee"><AssigneeBadge issue={subtask} /></div>
+                <div className="grouped-table-cell" role="cell" data-label="Priority"><span className="priority-pill">{subtask.priority || "None"}</span></div>
+                <div className="grouped-table-cell component-text" role="cell" data-label="Components">{formatComponents(subtask.components)}</div>
+                <div className="grouped-table-cell muted-cell" role="cell" data-label="Updated">{subtask.updatedDisplay || "Unknown"}</div>
+                <div className="grouped-table-cell grouped-table-actions" role="cell" data-label="Actions">
+                  <div className="table-action-buttons">
+                    <a href={subtask.url || "#"} target="_blank" rel="noreferrer">Jira</a>
+                    <button type="button" onClick={() => onSelectTicket(subtask.key || "")}>Details</button>
+                  </div>
+                </div>
+              </div>
+              <div className="grouped-table-assign-row subtask-assign-row">
+                <AssigneeAssignmentControl
+                  issue={subtask}
+                  options={assignmentOptions}
+                  request={assignmentStates[subtask.key || ""]}
+                  onAssign={onAssign}
+                  compact
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
