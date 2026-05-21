@@ -12,6 +12,7 @@ This repo owns the shared dashboard code: Jira pulls, HTML generation, GitHub Ac
 - Checklist comment workflow for posting QA checklist results back to Jira
 - Slack and email notification script hooks
 - Cloudflare Worker bridge source for hosted assignee/checklist dispatch
+- Cloudflare Cron refresh monitor that verifies board pull freshness and dispatches recovery runs
 - Local bridge fallback scripts for development
 - Astro migration shell under `modern-dashboard/` for the future static UI
 - Placeholder `index.html` so the template repo can be published safely without live Jira data
@@ -75,6 +76,7 @@ The `jira-board-provisioner` Worker is the central automation service for future
 - Enable GitHub Pages from `master` at `/`.
 - Dispatch the first refresh workflow.
 - Provide managed secrets to GitHub Actions through GitHub OIDC without storing those secrets in every board repo.
+- Monitor active board freshness every 5 minutes and dispatch `refresh-jira-board.yml` when GitHub's schedule does not wake the board up on time.
 
 Provisioner file:
 
@@ -82,6 +84,16 @@ Provisioner file:
 workers/board-provisioner-worker.js
 wrangler.provisioner.toml
 ```
+
+Refresh monitor endpoints:
+
+```text
+GET  https://jira-board-provisioner.dfkabir253.workers.dev/monitor/status
+GET  https://jira-board-provisioner.dfkabir253.workers.dev/monitor/health
+POST https://jira-board-provisioner.dfkabir253.workers.dev/monitor/run
+```
+
+The monitor treats a board as stale after `REFRESH_MONITOR_STALE_MINUTES` and critical after `REFRESH_MONITOR_CRITICAL_MINUTES`. It checks for active refresh workflow runs and gives successful recovery runs `REFRESH_MONITOR_PUBLISHING_GRACE_MINUTES` to publish through GitHub Pages before dispatching again, so it does not pile up duplicate GitHub Actions runs.
 
 Required provisioner secrets:
 
@@ -185,6 +197,7 @@ Generated data that does not belong in this template:
 - Slack notification formatting for added, updated, moved, and removed tickets
 - Email notification hook for future SMTP or email-service wiring
 - Cloudflare-hosted bridge support
+- Cloudflare-hosted refresh monitor with 5-minute cron checks and recovery dispatch
 - Astro static shell scaffold for the modern dashboard migration
 - React and TanStack Table ticket explorer inside the Astro preview
 - Checklist workspace with editable QA cases, evidence, concerns, preview, and Cloudflare bridge submission
@@ -197,6 +210,13 @@ Generated data that does not belong in this template:
 - Custom compact dropdown controls with Jira assignee avatar support in the modern preview
 
 ## Version History
+
+### v1.10.17
+
+- Added Cloudflare Cron refresh monitor support to the provisioner Worker.
+- Added `/monitor/status`, `/monitor/health`, and admin-protected `/monitor/run` endpoints.
+- Added a publishing grace state so recovery dispatches do not repeat while GitHub Pages is still serving older JSON.
+- Documented the hosted watchdog in `docs/dashboard-modernization/hosted-refresh-monitor.md`.
 
 ### v1.10.16
 

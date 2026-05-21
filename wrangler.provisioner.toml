@@ -2,6 +2,9 @@ name = "jira-board-provisioner"
 main = "workers/board-provisioner-worker.js"
 compatibility_date = "2026-05-09"
 
+[triggers]
+crons = ["*/5 * * * *"]
+
 [vars]
 TEMPLATE_OWNER = "DewanKabir009"
 TEMPLATE_REPOSITORY = "jira-board-template"
@@ -17,6 +20,10 @@ ALLOWED_REPOSITORIES = "DewanKabir009/jira-board-template"
 ASSIGNEE_DISPATCH_ENDPOINT = "https://jira-board-assignee-bridge.dfkabir253.workers.dev/assign"
 TEST_CHECKLIST_COMMENT_ENDPOINT = "https://jira-board-assignee-bridge.dfkabir253.workers.dev/comment-checklist"
 TRUSTED_GITHUB_ACTORS = "DewanKabir009"
+BOARD_REGISTRY_URL = "https://raw.githubusercontent.com/DewanKabir009/jira-board-template/master/boards.json"
+REFRESH_MONITOR_STALE_MINUTES = "20"
+REFRESH_MONITOR_CRITICAL_MINUTES = "40"
+REFRESH_MONITOR_PUBLISHING_GRACE_MINUTES = "10"
 
 # Optional if you put this Worker behind Cloudflare Access for /provision.
 # PROVISIONER_ADMIN_EMAILS = "qa.lead@example.com"
