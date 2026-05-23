@@ -448,7 +448,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
           <a className="table-ticket-key" href={row.original.url || "#"} target="_blank" rel="noreferrer">
             {row.original.key || "Ticket"}
           </a>
-          <span>{row.original.type || "Issue"}</span>
+          <IssueTypePill issue={row.original} />
         </div>
       )
     },
@@ -1123,7 +1123,7 @@ function TicketTableGroup({
           <a className="table-ticket-key" href={issue.url || "#"} target="_blank" rel="noreferrer">
             {issue.key || "Ticket"}
           </a>
-          <span>{issue.type || "Issue"}</span>
+          <IssueTypePill issue={issue} />
         </div>
         <div className="grouped-table-cell summary-cell" role="cell" data-label="Summary">
           <button
@@ -1182,7 +1182,7 @@ function TicketTableGroup({
                   <a className="table-ticket-key" href={subtask.url || "#"} target="_blank" rel="noreferrer">
                     {subtask.key || "Subtask"}
                   </a>
-                  <span>Subtask</span>
+                  <IssueTypePill issue={subtask} />
                 </div>
                 <div className="grouped-table-cell summary-cell" role="cell" data-label="Summary">
                   <button
@@ -1875,6 +1875,17 @@ function AssigneeAssignmentControl({
         </p>
       ) : null}
     </div>
+  );
+}
+
+function IssueTypePill({ issue }: { issue: Issue }) {
+  const isSubtask = Boolean(issue.isSubtask);
+  const label = isSubtask ? "Subtask" : issue.type || "Main";
+
+  return (
+    <span className={isSubtask ? "issue-type-pill subtask" : "issue-type-pill main"}>
+      {label}
+    </span>
   );
 }
 
