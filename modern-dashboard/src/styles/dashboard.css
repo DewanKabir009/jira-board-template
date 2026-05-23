@@ -1879,8 +1879,14 @@ h3 {
 }
 
 .table-ticket-group.expanded {
-  border-color: rgba(0, 95, 204, 0.24);
-  box-shadow: 0 0 0 2px rgba(225, 243, 255, 0.74), 0 16px 34px rgba(0, 84, 122, 0.1);
+  border-color: #1787d4;
+  border-width: 2px;
+  box-shadow: 0 0 0 2px rgba(23, 135, 212, 0.16), 0 16px 34px rgba(0, 84, 122, 0.1);
+}
+
+.table-ticket-group.expanded::before {
+  width: 5px;
+  background: #1787d4;
 }
 
 .table-ticket-group.selected-parent,
@@ -1894,9 +1900,12 @@ h3 {
 .table-ticket-group.selected-parent::before,
 .table-ticket-group.has-selected-subtask::before {
   width: 5px;
-  background: linear-gradient(180deg, #003b7a 0%, #0066cc 48%, #008f5a 100%);
+  background: #064a98;
 }
 
+.table-ticket-group.expanded .parent-ticket-row,
+.table-ticket-group.expanded .grouped-table-assign-row,
+.table-ticket-group.expanded .grouped-table-subtasks,
 .table-ticket-group.selected-parent .parent-ticket-row,
 .table-ticket-group.selected-parent .grouped-table-assign-row,
 .table-ticket-group.selected-parent .grouped-table-subtasks,
@@ -1918,7 +1927,7 @@ h3 {
 .table-ticket-group.expanded .parent-ticket-row {
   background:
     linear-gradient(90deg, rgba(0, 102, 204, 0.1), rgba(225, 243, 255, 0.72) 34%, rgba(255, 255, 255, 0.86));
-  box-shadow: inset 5px 0 0 rgba(0, 95, 204, 0.55);
+  box-shadow: none;
 }
 
 .table-ticket-group.selected-parent .parent-ticket-row,
