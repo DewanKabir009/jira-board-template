@@ -1104,10 +1104,18 @@ function TicketTableGroup({
   const isOpen = openSubtaskParents.has(parentId);
   const subtaskCount = group.visibleSubtasks.length;
   const changes = changeLabels(issue.key || "", changeSets);
+  const isParentSelected = selectedKey === issue.key;
+  const hasSelectedSubtask = group.visibleSubtasks.some((subtask) => subtask.key === selectedKey);
+  const groupClassName = [
+    "table-ticket-group",
+    isOpen ? "expanded" : "",
+    isParentSelected ? "selected selected-parent" : "",
+    hasSelectedSubtask ? "has-selected-subtask" : ""
+  ].filter(Boolean).join(" ");
 
   return (
-    <section className={selectedKey === issue.key ? "table-ticket-group selected" : "table-ticket-group"} role="rowgroup">
-      <div className="grouped-table-row parent-ticket-row" role="row">
+    <section className={groupClassName} role="rowgroup">
+      <div className="grouped-table-row parent-ticket-row" role="row" aria-selected={isParentSelected}>
         <div className="grouped-table-cell ticket-cell" role="cell" data-label="Ticket">
           <a className="table-ticket-key" href={issue.url || "#"} target="_blank" rel="noreferrer">
             {issue.key || "Ticket"}
@@ -1162,8 +1170,11 @@ function TicketTableGroup({
       {isOpen && subtaskCount ? (
         <div className="grouped-table-subtasks" aria-label={`Subtasks for ${issue.key || "ticket"}`}>
           {group.visibleSubtasks.map((subtask) => (
-            <div className="grouped-table-subtask-item" key={subtask.key || `${parentId}-${subtask.summary}`}>
-              <div className={selectedKey === subtask.key ? "grouped-table-row subtask-table-row selected" : "grouped-table-row subtask-table-row"} role="row">
+            <div
+              className={selectedKey === subtask.key ? "grouped-table-subtask-item selected-subtask-item" : "grouped-table-subtask-item"}
+              key={subtask.key || `${parentId}-${subtask.summary}`}
+            >
+              <div className={selectedKey === subtask.key ? "grouped-table-row subtask-table-row selected" : "grouped-table-row subtask-table-row"} role="row" aria-selected={selectedKey === subtask.key}>
                 <div className="grouped-table-cell ticket-cell" role="cell" data-label="Ticket">
                   <a className="table-ticket-key" href={subtask.url || "#"} target="_blank" rel="noreferrer">
                     {subtask.key || "Subtask"}

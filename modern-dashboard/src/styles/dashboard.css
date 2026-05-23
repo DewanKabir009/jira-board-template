@@ -1822,6 +1822,7 @@ h3 {
 }
 
 .table-ticket-group {
+  position: relative;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1829,19 +1830,45 @@ h3 {
   box-shadow: 0 10px 24px rgba(0, 84, 122, 0.07);
 }
 
-.table-ticket-group.selected {
+.table-ticket-group.expanded {
+  border-color: rgba(0, 143, 90, 0.42);
+  box-shadow: 0 0 0 2px rgba(216, 255, 240, 0.82), 0 16px 34px rgba(0, 84, 122, 0.1);
+}
+
+.table-ticket-group.selected-parent {
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(0, 143, 90, 0.14), 0 14px 34px rgba(0, 84, 122, 0.1);
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.16), 0 18px 40px rgba(0, 84, 122, 0.13);
+}
+
+.table-ticket-group.has-selected-subtask {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15), 0 18px 40px rgba(0, 84, 122, 0.13);
 }
 
 .parent-ticket-row {
   padding: 12px;
 }
 
-.parent-ticket-row:hover,
-.subtask-table-row:hover,
-.subtask-table-row.selected {
+.parent-ticket-row:hover {
   background: rgba(216, 255, 240, 0.58);
+}
+
+.table-ticket-group.expanded .parent-ticket-row {
+  background:
+    linear-gradient(90deg, rgba(0, 143, 90, 0.16), rgba(216, 255, 240, 0.62) 34%, rgba(255, 255, 255, 0.86));
+  box-shadow: inset 5px 0 0 var(--green);
+}
+
+.table-ticket-group.selected-parent .parent-ticket-row {
+  background:
+    linear-gradient(90deg, rgba(0, 102, 204, 0.18), rgba(225, 243, 255, 0.88) 38%, rgba(255, 255, 255, 0.9));
+  box-shadow: inset 5px 0 0 var(--blue);
+}
+
+.table-ticket-group.has-selected-subtask .parent-ticket-row {
+  background:
+    linear-gradient(90deg, rgba(139, 92, 246, 0.15), rgba(242, 236, 255, 0.86) 38%, rgba(255, 255, 255, 0.92));
+  box-shadow: inset 5px 0 0 #8b5cf6;
 }
 
 .grouped-table-cell {
@@ -1928,25 +1955,47 @@ h3 {
 .grouped-table-subtasks {
   display: grid;
   border-top: 1px solid var(--line);
-  background: rgba(241, 251, 255, 0.56);
+  background: linear-gradient(180deg, rgba(255, 249, 226, 0.7), rgba(241, 251, 255, 0.7));
 }
 
 .grouped-table-subtask-item {
   display: grid;
   border-top: 1px solid var(--line);
+  background: rgba(255, 249, 226, 0.58);
 }
 
 .grouped-table-subtask-item:first-child {
   border-top: 0;
 }
 
+.grouped-table-subtask-item:nth-child(even) {
+  background: rgba(230, 249, 255, 0.62);
+}
+
+.grouped-table-subtask-item.selected-subtask-item {
+  background: linear-gradient(90deg, rgba(139, 92, 246, 0.16), rgba(242, 236, 255, 0.94) 44%, rgba(255, 255, 255, 0.9));
+}
+
 .subtask-table-row {
   padding: 10px 12px;
 }
 
+.subtask-table-row:hover {
+  background: rgba(255, 243, 196, 0.62);
+}
+
+.subtask-table-row.selected {
+  background: transparent;
+  box-shadow: inset 5px 0 0 #8b5cf6;
+}
+
 .subtask-table-row .ticket-cell {
-  border-left: 3px solid var(--sky);
+  border-left: 3px solid #f59e0b;
   padding-left: 10px;
+}
+
+.subtask-table-row.selected .ticket-cell {
+  border-left-color: #8b5cf6;
 }
 
 .subtask-assign-row {
