@@ -1867,6 +1867,17 @@ h3 {
   box-shadow: 0 10px 24px rgba(0, 84, 122, 0.07);
 }
 
+.table-ticket-group::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 1;
+  width: 0;
+  border-radius: 8px 0 0 8px;
+  background: transparent;
+  pointer-events: none;
+}
+
 .table-ticket-group.expanded {
   border-color: rgba(0, 95, 204, 0.24);
   box-shadow: 0 0 0 2px rgba(225, 243, 255, 0.74), 0 16px 34px rgba(0, 84, 122, 0.1);
@@ -1874,9 +1885,26 @@ h3 {
 
 .table-ticket-group.selected-parent,
 .table-ticket-group.has-selected-subtask {
-  border-color: var(--blue);
+  border-color: #064a98;
+  border-width: 2px;
   background: linear-gradient(135deg, rgba(0, 102, 204, 0.13), rgba(0, 143, 90, 0.09)), #ffffff;
-  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.2), 0 18px 40px rgba(0, 84, 122, 0.15);
+  box-shadow: 0 0 0 3px rgba(0, 95, 204, 0.24), 0 18px 42px rgba(0, 54, 105, 0.2);
+}
+
+.table-ticket-group.selected-parent::before,
+.table-ticket-group.has-selected-subtask::before {
+  width: 5px;
+  background: linear-gradient(180deg, #003b7a 0%, #0066cc 48%, #008f5a 100%);
+}
+
+.table-ticket-group.selected-parent .parent-ticket-row,
+.table-ticket-group.selected-parent .grouped-table-assign-row,
+.table-ticket-group.selected-parent .grouped-table-subtasks,
+.table-ticket-group.has-selected-subtask .parent-ticket-row,
+.table-ticket-group.has-selected-subtask .grouped-table-assign-row,
+.table-ticket-group.has-selected-subtask .grouped-table-subtasks {
+  position: relative;
+  z-index: 2;
 }
 
 .parent-ticket-row {
@@ -1896,8 +1924,8 @@ h3 {
 .table-ticket-group.selected-parent .parent-ticket-row,
 .table-ticket-group.has-selected-subtask .parent-ticket-row {
   background:
-    linear-gradient(90deg, rgba(0, 102, 204, 0.24), rgba(181, 225, 255, 0.78) 40%, rgba(224, 255, 239, 0.78));
-  box-shadow: inset 5px 0 0 var(--blue);
+    linear-gradient(90deg, rgba(0, 77, 156, 0.24), rgba(181, 225, 255, 0.82) 42%, rgba(224, 255, 239, 0.78));
+  box-shadow: none;
 }
 
 .grouped-table-cell {
@@ -2002,7 +2030,7 @@ h3 {
 }
 
 .grouped-table-subtask-item.selected-subtask-item {
-  background: linear-gradient(90deg, rgba(0, 102, 204, 0.19), rgba(181, 225, 255, 0.78) 46%, rgba(224, 255, 239, 0.78));
+  background: linear-gradient(90deg, rgba(0, 77, 156, 0.17), rgba(181, 225, 255, 0.8) 46%, rgba(224, 255, 239, 0.78));
 }
 
 .subtask-table-row {
@@ -2015,7 +2043,7 @@ h3 {
 
 .subtask-table-row.selected {
   background: transparent;
-  box-shadow: inset 5px 0 0 var(--blue);
+  box-shadow: inset 3px 0 0 #064a98;
 }
 
 .subtask-table-row .ticket-cell {
