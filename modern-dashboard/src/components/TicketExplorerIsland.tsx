@@ -44,6 +44,9 @@ type Issue = {
   assignee?: string;
   assigneeAvatarUrl?: string;
   assigneeAccountId?: string;
+  assignedDeveloper?: string;
+  assignedDeveloperAvatarUrl?: string;
+  assignedDeveloperAccountId?: string;
   updated?: string;
   updatedDisplay?: string;
   components?: string[];
@@ -471,10 +474,10 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
       cell: ({ getValue }) => <span className="status-pill">{String(getValue() || "None")}</span>
     },
     {
-      id: "assignee",
-      header: "Assignee",
-      accessorFn: (issue) => issue.assignee || "Unassigned",
-      cell: ({ row }) => <AssigneeBadge issue={row.original} />
+      id: "people",
+      header: "People",
+      accessorFn: (issue) => `${issue.assignee || "Unassigned"} ${issue.assignedDeveloper || "Unassigned"}`,
+      cell: ({ row }) => <PeopleStack issue={row.original} />
     },
     {
       id: "priority",
@@ -665,7 +668,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
         <div className="explorer-filters" aria-label="Ticket filters">
           <label>
             <span>Search</span>
-            <input value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} placeholder="Ticket, summary, assignee, component" />
+            <input value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} placeholder="Ticket, summary, assignee, developer, component" />
           </label>
           <SelectFilter label="Status" value={filters.status} options={options.statuses} onChange={(value) => updateFilter("status", value)} />
           <SelectFilter label="Assignee" value={filters.assignee} options={options.assignees} onChange={(value) => updateFilter("assignee", value)} showAvatars />
@@ -1051,7 +1054,7 @@ function TicketTableView({
         <span role="columnheader">Ticket</span>
         <span role="columnheader">Summary</span>
         <span role="columnheader">Status</span>
-        <span role="columnheader">Assignee</span>
+        <span role="columnheader">People</span>
         <span role="columnheader">Priority</span>
         <span role="columnheader">Components</span>
         <span role="columnheader">Updated</span>
@@ -1138,7 +1141,7 @@ function TicketTableGroup({
           ) : null}
         </div>
         <div className="grouped-table-cell" role="cell" data-label="Status"><span className="status-pill">{issue.status || "None"}</span></div>
-        <div className="grouped-table-cell" role="cell" data-label="Assignee"><AssigneeBadge issue={issue} /></div>
+        <div className="grouped-table-cell" role="cell" data-label="People"><PeopleStack issue={issue} /></div>
         <div className="grouped-table-cell" role="cell" data-label="Priority"><span className="priority-pill">{issue.priority || "None"}</span></div>
         <div className="grouped-table-cell component-text" role="cell" data-label="Components">{formatComponents(issue.components)}</div>
         <div className="grouped-table-cell muted-cell" role="cell" data-label="Updated">{issue.updatedDisplay || "Unknown"}</div>
@@ -1192,7 +1195,7 @@ function TicketTableGroup({
                   </button>
                 </div>
                 <div className="grouped-table-cell" role="cell" data-label="Status"><span className="status-pill">{subtask.status || "None"}</span></div>
-                <div className="grouped-table-cell" role="cell" data-label="Assignee"><AssigneeBadge issue={subtask} /></div>
+                <div className="grouped-table-cell" role="cell" data-label="People"><PeopleStack issue={subtask} /></div>
                 <div className="grouped-table-cell" role="cell" data-label="Priority"><span className="priority-pill">{subtask.priority || "None"}</span></div>
                 <div className="grouped-table-cell component-text" role="cell" data-label="Components">{formatComponents(subtask.components)}</div>
                 <div className="grouped-table-cell muted-cell" role="cell" data-label="Updated">{subtask.updatedDisplay || "Unknown"}</div>
@@ -1355,6 +1358,10 @@ function GroupedTicketCard({
           <dd><AssigneeBadge issue={issue} /></dd>
         </div>
         <div>
+          <dt>Assigned Developer</dt>
+          <dd><AssignedDeveloperBadge issue={issue} /></dd>
+        </div>
+        <div>
           <dt>Updated</dt>
           <dd>{issue.updatedDisplay || "Unknown"}</dd>
         </div>
@@ -1418,6 +1425,7 @@ function GroupedTicketCard({
               <div className="subtask-meta">
                 <span className="status-pill">{subtask.status || "None"}</span>
                 <AssigneeBadge issue={subtask} />
+                <AssignedDeveloperBadge issue={subtask} compact />
                 <span>{subtask.priority || "None"}</span>
                 <span>{formatComponents(subtask.components)}</span>
               </div>
@@ -1880,6 +1888,31 @@ function AssigneeBadge({ issue }: { issue: Issue }) {
   );
 }
 
+function AssignedDeveloperBadge({ issue, compact = false }: { issue: Issue; compact?: boolean }) {
+  const label = issue.assignedDeveloper || "Unassigned";
+  return (
+    <span className={compact ? "developer-badge compact" : "developer-badge"}>
+      <Avatar option={{ value: `developer-${label}`, label, avatarUrl: issue.assignedDeveloperAvatarUrl }} />
+      <span>{compact ? `Dev: ${label}` : label}</span>
+    </span>
+  );
+}
+
+function PeopleStack({ issue }: { issue: Issue }) {
+  return (
+    <div className="people-stack">
+      <div>
+        <span className="people-label">Assignee</span>
+        <AssigneeBadge issue={issue} />
+      </div>
+      <div>
+        <span className="people-label">Assigned Developer</span>
+        <AssignedDeveloperBadge issue={issue} />
+      </div>
+    </div>
+  );
+}
+
 function SelectFilter({
   label,
   value,
@@ -2186,6 +2219,7 @@ function TicketDetailFields({ issue, checklistTotal }: { issue: Issue; checklist
     <dl className="detail-grid">
       <div><dt>Status</dt><dd>{issue.status || "None"}</dd></div>
       <div><dt>Assignee</dt><dd><AssigneeBadge issue={issue} /></dd></div>
+      <div><dt>Assigned Developer</dt><dd><AssignedDeveloperBadge issue={issue} /></dd></div>
       <div><dt>Parent</dt><dd>{parentLabel(issue) || (issue.isSubtask ? "Subtask" : "Main ticket")}</dd></div>
       <div><dt>Checklist</dt><dd>{checklistTotal ? `${checklistTotal} cases` : "No parsed checklist"}</dd></div>
     </dl>
@@ -2504,6 +2538,7 @@ function matchesFilters(issue: Issue, filters: Filters, changeSets: ChangeSets, 
     issue.status,
     issue.priority,
     issue.assignee,
+    issue.assignedDeveloper,
     parentLabel(issue),
     ...(issue.components || [])
   ].filter(Boolean).join(" ").toLowerCase();

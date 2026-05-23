@@ -1616,7 +1616,8 @@ h3 {
   letter-spacing: 0;
 }
 
-.assignee-badge {
+.assignee-badge,
+.developer-badge {
   display: inline-flex;
   max-width: 100%;
   min-width: 0;
@@ -1624,11 +1625,47 @@ h3 {
   gap: 7px;
 }
 
-.assignee-badge span:last-child {
+.developer-badge {
+  color: var(--muted);
+}
+
+.developer-badge.compact {
+  gap: 5px;
+  font-size: 0.8rem;
+}
+
+.developer-badge.compact .assignee-avatar {
+  width: 18px;
+  height: 18px;
+  font-size: 0.54rem;
+}
+
+.assignee-badge span:last-child,
+.developer-badge span:last-child {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.people-stack {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.people-stack > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.people-label {
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .assign-control {
@@ -1831,18 +1868,15 @@ h3 {
 }
 
 .table-ticket-group.expanded {
-  border-color: rgba(0, 143, 90, 0.42);
-  box-shadow: 0 0 0 2px rgba(216, 255, 240, 0.82), 0 16px 34px rgba(0, 84, 122, 0.1);
+  border-color: rgba(0, 95, 204, 0.24);
+  box-shadow: 0 0 0 2px rgba(225, 243, 255, 0.74), 0 16px 34px rgba(0, 84, 122, 0.1);
 }
 
-.table-ticket-group.selected-parent {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.16), 0 18px 40px rgba(0, 84, 122, 0.13);
-}
-
+.table-ticket-group.selected-parent,
 .table-ticket-group.has-selected-subtask {
-  border-color: #8b5cf6;
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15), 0 18px 40px rgba(0, 84, 122, 0.13);
+  border-color: var(--blue);
+  background: linear-gradient(135deg, rgba(0, 102, 204, 0.13), rgba(0, 143, 90, 0.09)), #ffffff;
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.2), 0 18px 40px rgba(0, 84, 122, 0.15);
 }
 
 .parent-ticket-row {
@@ -1855,20 +1889,15 @@ h3 {
 
 .table-ticket-group.expanded .parent-ticket-row {
   background:
-    linear-gradient(90deg, rgba(0, 143, 90, 0.16), rgba(216, 255, 240, 0.62) 34%, rgba(255, 255, 255, 0.86));
-  box-shadow: inset 5px 0 0 var(--green);
+    linear-gradient(90deg, rgba(0, 102, 204, 0.1), rgba(225, 243, 255, 0.72) 34%, rgba(255, 255, 255, 0.86));
+  box-shadow: inset 5px 0 0 rgba(0, 95, 204, 0.55);
 }
 
-.table-ticket-group.selected-parent .parent-ticket-row {
-  background:
-    linear-gradient(90deg, rgba(0, 102, 204, 0.18), rgba(225, 243, 255, 0.88) 38%, rgba(255, 255, 255, 0.9));
-  box-shadow: inset 5px 0 0 var(--blue);
-}
-
+.table-ticket-group.selected-parent .parent-ticket-row,
 .table-ticket-group.has-selected-subtask .parent-ticket-row {
   background:
-    linear-gradient(90deg, rgba(139, 92, 246, 0.15), rgba(242, 236, 255, 0.86) 38%, rgba(255, 255, 255, 0.92));
-  box-shadow: inset 5px 0 0 #8b5cf6;
+    linear-gradient(90deg, rgba(0, 102, 204, 0.24), rgba(181, 225, 255, 0.78) 40%, rgba(224, 255, 239, 0.78));
+  box-shadow: inset 5px 0 0 var(--blue);
 }
 
 .grouped-table-cell {
@@ -1955,13 +1984,13 @@ h3 {
 .grouped-table-subtasks {
   display: grid;
   border-top: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(255, 249, 226, 0.7), rgba(241, 251, 255, 0.7));
+  background: linear-gradient(180deg, rgba(232, 246, 255, 0.74), rgba(246, 254, 255, 0.78));
 }
 
 .grouped-table-subtask-item {
   display: grid;
   border-top: 1px solid var(--line);
-  background: rgba(255, 249, 226, 0.58);
+  background: rgba(255, 255, 255, 0.68);
 }
 
 .grouped-table-subtask-item:first-child {
@@ -1969,11 +1998,11 @@ h3 {
 }
 
 .grouped-table-subtask-item:nth-child(even) {
-  background: rgba(230, 249, 255, 0.62);
+  background: rgba(241, 251, 255, 0.74);
 }
 
 .grouped-table-subtask-item.selected-subtask-item {
-  background: linear-gradient(90deg, rgba(139, 92, 246, 0.16), rgba(242, 236, 255, 0.94) 44%, rgba(255, 255, 255, 0.9));
+  background: linear-gradient(90deg, rgba(0, 102, 204, 0.19), rgba(181, 225, 255, 0.78) 46%, rgba(224, 255, 239, 0.78));
 }
 
 .subtask-table-row {
@@ -1981,21 +2010,21 @@ h3 {
 }
 
 .subtask-table-row:hover {
-  background: rgba(255, 243, 196, 0.62);
+  background: rgba(225, 243, 255, 0.66);
 }
 
 .subtask-table-row.selected {
   background: transparent;
-  box-shadow: inset 5px 0 0 #8b5cf6;
+  box-shadow: inset 5px 0 0 var(--blue);
 }
 
 .subtask-table-row .ticket-cell {
-  border-left: 3px solid #f59e0b;
+  border-left: 3px solid rgba(0, 95, 204, 0.42);
   padding-left: 10px;
 }
 
 .subtask-table-row.selected .ticket-cell {
-  border-left-color: #8b5cf6;
+  border-left-color: var(--blue);
 }
 
 .subtask-assign-row {
@@ -2088,7 +2117,8 @@ h3 {
 
 .grouped-ticket-card.selected {
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(0, 143, 90, 0.14), 0 16px 38px rgba(0, 84, 122, 0.12);
+  background: linear-gradient(135deg, rgba(0, 102, 204, 0.2), rgba(0, 143, 90, 0.12)), #ffffff;
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.2), 0 16px 38px rgba(0, 84, 122, 0.14);
 }
 
 .grouped-ticket-topline,
@@ -2133,7 +2163,7 @@ h3 {
 
 .ticket-card-meta {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin: 0;
 }
@@ -2218,9 +2248,13 @@ h3 {
   border-top: 0;
 }
 
-.subtask-row.selected,
 .subtask-row:hover {
-  background: rgba(216, 255, 240, 0.72);
+  background: rgba(225, 243, 255, 0.66);
+}
+
+.subtask-row.selected {
+  background: linear-gradient(135deg, rgba(0, 102, 204, 0.18), rgba(0, 143, 90, 0.12));
+  box-shadow: inset 5px 0 0 var(--blue);
 }
 
 .subtask-main {
