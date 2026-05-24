@@ -2840,13 +2840,18 @@ h3 {
   padding: 9px;
 }
 
-.description-panel img {
+.description-panel img,
+.description-panel video {
   display: block;
   width: 100%;
   max-height: 560px;
   object-fit: contain;
   border-radius: 6px;
   background: #f7fbff;
+}
+
+.description-panel video {
+  background: #071827;
 }
 
 .description-media figcaption,
@@ -2989,6 +2994,110 @@ h3 {
 
 .ticket-detail-modal-body .description-panel img {
   max-height: min(72vh, 760px);
+}
+
+.ticket-detail-modal-body .description-panel video {
+  max-height: min(72vh, 760px);
+}
+
+.ticket-comments-panel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(241, 251, 255, 0.92));
+  padding: 14px;
+}
+
+.ticket-comments-panel.is-empty {
+  border-style: dashed;
+}
+
+.ticket-comments-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ticket-comments-heading h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.ticket-comments-heading span {
+  border-radius: 999px;
+  background: rgba(0, 95, 204, 0.1);
+  color: var(--blue);
+  font-size: 0.76rem;
+  font-weight: 900;
+  padding: 5px 9px;
+}
+
+.ticket-comments-list {
+  display: grid;
+  gap: 12px;
+  max-height: min(44vh, 520px);
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.ticket-detail-modal-body .ticket-comments-list {
+  max-height: none;
+  overflow: visible;
+}
+
+.ticket-comment {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(0, 144, 213, 0.24);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.ticket-comment-header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.ticket-comment-header > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ticket-comment-header strong {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.ticket-comment-header span,
+.ticket-comment-edited {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.ticket-comment-body {
+  color: #2e4558;
+  font-size: 0.9rem;
+  line-height: 1.52;
+  overflow-wrap: anywhere;
+}
+
+.ticket-comment-body p,
+.ticket-comment-body ul,
+.ticket-comment-body ol,
+.ticket-comment-body blockquote {
+  margin-top: 0;
+}
+
+.ticket-comment-body p:last-child,
+.ticket-comment-edited {
+  margin-bottom: 0;
 }
 
 .checklist-workspace {

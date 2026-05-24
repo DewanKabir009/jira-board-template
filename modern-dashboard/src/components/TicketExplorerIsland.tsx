@@ -72,11 +72,25 @@ type Issue = {
   description?: string;
   descriptionHtml?: string;
   descriptionImageCount?: number;
+  descriptionVideoCount?: number;
+  descriptionMediaCount?: number;
+  commentCount?: number;
+  comments?: JiraComment[];
   testChecklist?: {
     files?: Array<{ filename?: string; id?: string }>;
     total?: number;
     testCases?: TestCase[];
   } | null;
+};
+
+type JiraComment = {
+  id?: string;
+  author?: string;
+  authorAvatarUrl?: string;
+  createdDisplay?: string;
+  updatedDisplay?: string;
+  body?: string;
+  bodyHtml?: string;
 };
 
 type TestCase = {
@@ -2620,6 +2634,7 @@ function TicketDetail({
       </div>
       <TicketDetailFields issue={issue} checklistTotal={checklistTotal} />
       <TicketDescription issue={issue} />
+      <TicketComments issue={issue} />
       <div className="detail-actions">
         <a className="button-link primary" href={issue.url || "#"} target="_blank" rel="noreferrer">Open Jira</a>
         <a className="button-link" href={data?.dashboardUrl || "../"}>Current board actions</a>
@@ -2688,7 +2703,8 @@ function TicketDetailDialog({
               <span>Status: {issue.status || "No status"}</span>
               <span>Priority: {issue.priority || "None"}</span>
               <span>Updated: {issue.updatedDisplay || "Unknown"}</span>
-              <span>Images: {Number(issue.descriptionImageCount || 0)}</span>
+              <span>Media: {mediaSummary(issue)}</span>
+              <span>Comments: {Number(issue.commentCount ?? issue.comments?.length ?? 0)}</span>
               <a href={issue.url || "#"} target="_blank" rel="noreferrer">Open Jira</a>
             </div>
           </div>
@@ -2707,6 +2723,7 @@ function TicketDetailDialog({
           </div>
           <TicketDetailFields issue={issue} checklistTotal={checklistTotal} />
           <TicketDescription issue={issue} />
+          <TicketComments issue={issue} />
           <ChecklistWorkspace issue={issue} data={data} />
         </div>
       </section>
@@ -2729,20 +2746,42 @@ function TicketDetailFields({ issue, checklistTotal }: { issue: Issue; checklist
 function TicketDescription({ issue }: { issue: Issue }) {
   const html = normalizeDescriptionHtml(issue.descriptionHtml?.trim() || "");
   const imageCount = Number(issue.descriptionImageCount || 0);
-  const hasContent = html || (issue.description || "").trim() || imageCount > 0;
+  const videoCount = Number(issue.descriptionVideoCount || 0);
+  const mediaCount = Number(issue.descriptionMediaCount || imageCount + videoCount);
+  const hasContent = html || (issue.description || "").trim() || mediaCount > 0;
 
   return (
     <section className={hasContent ? "description-panel" : "description-panel is-empty"} aria-label={`Description for ${issue.key || "ticket"}`}>
       <div className="description-panel-heading">
         <h3>Description</h3>
-        <span>{imageCount ? `${imageCount} image${imageCount === 1 ? "" : "s"}` : "Full text"}</span>
+        <span>{mediaCount ? mediaSummary(issue) : "Full text"}</span>
       </div>
       {html ? <div className="description-html" dangerouslySetInnerHTML={{ __html: html }} /> : <DescriptionText description={issue.description} />}
-      {!html && imageCount ? (
-        <p className="description-note">{imageCount} embedded Jira image reference{imageCount === 1 ? " is" : "s are"} present, but rendered image markup was not included in this dashboard artifact.</p>
+      {!html && mediaCount ? (
+        <p className="description-note">{mediaSummary(issue)} referenced by Jira, but rendered media markup was not included in this dashboard artifact.</p>
       ) : null}
     </section>
   );
+}
+
+function mediaSummary(issue: Issue) {
+  const imageCount = Number(issue.descriptionImageCount || 0);
+  const videoCount = Number(issue.descriptionVideoCount || 0);
+  const parts = [];
+
+  if (imageCount) {
+    parts.push(`${imageCount} image${imageCount === 1 ? "" : "s"}`);
+  }
+  if (videoCount) {
+    parts.push(`${videoCount} video${videoCount === 1 ? "" : "s"}`);
+  }
+
+  if (parts.length) {
+    return parts.join(" / ");
+  }
+
+  const mediaCount = Number(issue.descriptionMediaCount || 0);
+  return mediaCount ? `${mediaCount} media item${mediaCount === 1 ? "" : "s"}` : "0";
 }
 
 function normalizeDescriptionHtml(html: string) {
@@ -2769,6 +2808,46 @@ function DescriptionText({ description }: { description?: string }) {
         </p>
       ))}
     </>
+  );
+}
+
+function TicketComments({ issue }: { issue: Issue }) {
+  const comments = Array.isArray(issue.comments) ? issue.comments : [];
+  const commentCount = Number(issue.commentCount ?? comments.length);
+  const hasComments = comments.length > 0;
+
+  return (
+    <section className={hasComments ? "ticket-comments-panel" : "ticket-comments-panel is-empty"} aria-label={`Comments for ${issue.key || "ticket"}`}>
+      <div className="ticket-comments-heading">
+        <h3>Comments</h3>
+        <span>
+          {commentCount ? `${comments.length}${commentCount > comments.length ? ` of ${commentCount}` : ""} comment${commentCount === 1 ? "" : "s"}` : "No comments"}
+        </span>
+      </div>
+      {hasComments ? (
+        <div className="ticket-comments-list">
+          {comments.map((comment, index) => (
+            <article className="ticket-comment" key={comment.id || `${issue.key}-comment-${index}`}>
+              <header className="ticket-comment-header">
+                <Avatar option={{ value: comment.author || "Unknown", label: comment.author || "Unknown", avatarUrl: comment.authorAvatarUrl || "" }} />
+                <div>
+                  <strong>{comment.author || "Unknown"}</strong>
+                  <span>{comment.createdDisplay || "Unknown date"}</span>
+                </div>
+              </header>
+              {comment.bodyHtml ? (
+                <div className="ticket-comment-body" dangerouslySetInnerHTML={{ __html: normalizeDescriptionHtml(comment.bodyHtml) }} />
+              ) : (
+                <DescriptionText description={comment.body || ""} />
+              )}
+              {comment.updatedDisplay ? <p className="ticket-comment-edited">Edited {comment.updatedDisplay}</p> : null}
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="description-empty">No comments were pulled into this dashboard artifact.</p>
+      )}
+    </section>
   );
 }
 

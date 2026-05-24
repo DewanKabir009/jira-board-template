@@ -302,6 +302,26 @@ async function jiraFetch(env, apiPath) {
   return response.json();
 }
 
+async function jiraBinaryFetch(env, apiPath) {
+  const config = jiraConfig(env);
+  const response = await fetch(`https://api.atlassian.com/ex/jira/${config.cloudId}/rest/api/3${apiPath}`, {
+    headers: {
+      Accept: "*/*",
+      Authorization: `Basic ${btoa(`${config.email}:${config.token}`)}`,
+    },
+    redirect: "follow",
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    const error = new Error(`Jira media lookup failed (${response.status}): ${details.slice(0, 300)}`);
+    error.status = response.status;
+    throw error;
+  }
+
+  return response;
+}
+
 function formatDate(input) {
   if (!input) {
     return "";
@@ -359,16 +379,59 @@ function descriptionText(description) {
   return output.join("").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-function descriptionHtml(description) {
-  const text = descriptionText(description);
-  if (!text) {
+function isImageAttachment(attachment) {
+  return String(attachment?.mimeType || "").startsWith("image/");
+}
+
+function isVideoAttachment(attachment) {
+  return String(attachment?.mimeType || "").startsWith("video/");
+}
+
+function mediaProxyUrl(request, attachment) {
+  if (!request || !attachment?.id) {
     return "";
   }
 
-  return text
+  const url = new URL(request.url);
+  url.pathname = url.pathname.replace(/\/issue$/, "/media").replace(/\/media$/, "/media");
+  url.search = "";
+  url.searchParams.set("attachmentId", attachment.id);
+  return url.toString();
+}
+
+function renderAttachmentMedia(attachments = [], request = null) {
+  const mediaAttachments = attachments.filter((attachment) => isImageAttachment(attachment) || isVideoAttachment(attachment));
+  if (!mediaAttachments.length || !request) {
+    return "";
+  }
+
+  const renderedMedia = mediaAttachments.map((attachment) => {
+    const label = escapeHtml(attachment.filename || "Jira media");
+    const src = escapeHtml(mediaProxyUrl(request, attachment));
+    if (!src) {
+      return "";
+    }
+    if (isVideoAttachment(attachment)) {
+      return `<figure class="description-media description-video"><video src="${src}" controls preload="metadata"></video><figcaption>${label}</figcaption></figure>`;
+    }
+    return `<figure class="description-media"><img src="${src}" alt="${label}" loading="lazy"><figcaption>${label}</figcaption></figure>`;
+  }).filter(Boolean).join("");
+
+  return renderedMedia ? `<div class="description-media-group">${renderedMedia}</div>` : "";
+}
+
+function descriptionHtml(description, attachments = [], request = null) {
+  const text = descriptionText(description);
+  const mediaHtml = renderAttachmentMedia(attachments, request);
+  if (!text && !mediaHtml) {
+    return "";
+  }
+
+  const bodyHtml = text
     .split(/\n{2,}/)
     .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
     .join("");
+  return `${bodyHtml}${mediaHtml}`;
 }
 
 function personName(person) {
@@ -423,11 +486,32 @@ function countDescriptionMedia(node) {
   return selfCount + childCount;
 }
 
-function normalizeJiraIssue(rawIssue, env) {
+function serializeIssueComments(comments = []) {
+  return comments.map((comment) => {
+    const author = comment.author || {};
+    return {
+      id: comment.id || "",
+      author: personName(author) || "Unknown",
+      authorAvatarUrl: personAvatar(author),
+      created: comment.created || "",
+      createdDisplay: formatDate(comment.created),
+      updated: comment.updated || "",
+      updatedDisplay: comment.updated && comment.updated !== comment.created ? formatDate(comment.updated) : "",
+      body: descriptionText(comment.body),
+      bodyHtml: descriptionHtml(comment.body),
+    };
+  });
+}
+
+function normalizeJiraIssue(rawIssue, env, request, comments = []) {
   const fields = rawIssue.fields || {};
   const config = jiraConfig(env);
   const assignedDeveloper = fields.customfield_11800;
   const parentFields = fields.parent?.fields || {};
+  const attachments = Array.isArray(fields.attachment) ? fields.attachment : [];
+  const imageCount = attachments.filter(isImageAttachment).length;
+  const videoCount = attachments.filter(isVideoAttachment).length;
+  const mediaCount = imageCount + videoCount || countDescriptionMedia(fields.description);
 
   return {
     key: rawIssue.key,
@@ -455,10 +539,28 @@ function normalizeJiraIssue(rawIssue, env) {
       priority: parentFields.priority?.name || "",
     } : null,
     description: descriptionText(fields.description),
-    descriptionHtml: descriptionHtml(fields.description),
-    descriptionImageCount: countDescriptionMedia(fields.description) +
-      (Array.isArray(fields.attachment) ? fields.attachment.filter((attachment) => String(attachment.mimeType || "").startsWith("image/")).length : 0),
+    descriptionHtml: descriptionHtml(fields.description, attachments, request),
+    descriptionImageCount: imageCount,
+    descriptionVideoCount: videoCount,
+    descriptionMediaCount: mediaCount,
+    commentCount: comments.length,
+    comments: serializeIssueComments(comments),
   };
+}
+
+async function fetchIssueComments(env, issueKey) {
+  const comments = [];
+  let startAt = 0;
+  let total = 0;
+
+  do {
+    const payload = await jiraFetch(env, `/issue/${encodeURIComponent(issueKey)}/comment?maxResults=100&startAt=${startAt}&expand=renderedBody`);
+    comments.push(...(payload.comments || []));
+    total = Number(payload.total || comments.length);
+    startAt += Number(payload.maxResults || 100);
+  } while (comments.length < total);
+
+  return comments.slice(-25);
 }
 
 async function handleIssueLookup(request, env) {
@@ -475,11 +577,41 @@ async function handleIssueLookup(request, env) {
 
   try {
     const issue = await jiraFetch(env, `/issue/${issueKey}?fields=${encodeURIComponent(JIRA_FIELDS.join(","))}`);
-    return json(request, env, 200, { ok: true, issue: normalizeJiraIssue(issue, env) });
+    const comments = await fetchIssueComments(env, issueKey);
+    return json(request, env, 200, { ok: true, issue: normalizeJiraIssue(issue, env, request, comments) });
   } catch (error) {
     return json(request, env, error.status === 404 ? 404 : 500, {
       ok: false,
       message: error instanceof Error ? error.message : "Jira issue lookup failed.",
+    });
+  }
+}
+
+async function handleMediaProxy(request, env) {
+  const auth = await authorizeMutation(request, env);
+  if (!auth.ok) {
+    return json(request, env, auth.status, { ok: false, message: auth.message });
+  }
+
+  const url = new URL(request.url);
+  const attachmentId = String(url.searchParams.get("attachmentId") || "").trim();
+  if (!/^\d+$/.test(attachmentId)) {
+    return json(request, env, 400, { ok: false, message: "A valid Jira attachment id is required." });
+  }
+
+  try {
+    const mediaResponse = await jiraBinaryFetch(env, `/attachment/content/${encodeURIComponent(attachmentId)}`);
+    const headers = new Headers(corsHeaders(request, env));
+    headers.set("Content-Type", mediaResponse.headers.get("Content-Type") || "application/octet-stream");
+    headers.set("Cache-Control", "private, max-age=300");
+    return new Response(mediaResponse.body, {
+      status: mediaResponse.status,
+      headers,
+    });
+  } catch (error) {
+    return json(request, env, error.status === 404 ? 404 : 500, {
+      ok: false,
+      message: error instanceof Error ? error.message : "Jira media lookup failed.",
     });
   }
 }
@@ -594,6 +726,9 @@ export default {
       }
       if (request.method === "GET" && url.pathname.endsWith("/issue")) {
         return handleIssueLookup(request, env);
+      }
+      if (request.method === "GET" && url.pathname.endsWith("/media")) {
+        return handleMediaProxy(request, env);
       }
       if (request.method === "POST" && url.pathname.endsWith("/assign")) {
         return handleAssign(request, env);
