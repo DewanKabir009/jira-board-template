@@ -239,6 +239,11 @@ type OperationsHealth = {
   items: OperationsHealthItem[];
 };
 
+type BridgeButtonStatus = {
+  label: string;
+  tone: HealthTone;
+};
+
 const PAGE_SIZE_OPTIONS = [15, 25, 50];
 const CARD_COLUMN_COUNT = 3;
 const DEFAULT_ASSIGNABLE_ASSIGNEES = [
@@ -337,6 +342,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   const analytics = useMemo(() => buildReleaseAnalytics(data, issues, changeSets), [data, issues, changeSets]);
   const componentCounts = useMemo(() => buildComponentCounts(issues), [issues]);
   const assignableAssigneeOptions = useMemo(() => createAssignableAssigneeOptions(data, issues), [data, issues]);
+  const bridgeButton = useMemo(() => bridgeButtonStatus(data), [data]);
 
   const filteredIssues = useMemo(() => {
     return issues.filter((issue) => matchesFilters(issue, filters, changeSets, activePreset));
@@ -532,13 +538,16 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
     getSortedRowModel: getSortedRowModel()
   });
 
-  const tablePageCount = Math.max(1, Math.ceil(ticketGroups.length / pageSize));
-  const cardPageCount = Math.max(1, Math.ceil(ticketGroups.length / pageSize));
+  const orderedTicketGroups = useMemo(() => (
+    explorerView === "table" ? [...ticketGroups].sort(compareTicketGroups) : ticketGroups
+  ), [explorerView, ticketGroups]);
+  const tablePageCount = Math.max(1, Math.ceil(orderedTicketGroups.length / pageSize));
+  const cardPageCount = Math.max(1, Math.ceil(orderedTicketGroups.length / pageSize));
   const pageCount = explorerView === "cards" ? cardPageCount : tablePageCount;
   const safePageIndex = Math.min(pageIndex, pageCount - 1);
-  const visibleTicketGroups = ticketGroups.slice(safePageIndex * pageSize, safePageIndex * pageSize + pageSize);
+  const visibleTicketGroups = orderedTicketGroups.slice(safePageIndex * pageSize, safePageIndex * pageSize + pageSize);
   const selectedIssue = issues.find((issue) => issue.key === selectedKey)
-    || ticketGroups[0]?.issue
+    || orderedTicketGroups[0]?.issue
     || filteredIssues[0]
     || issues[0];
   const dialogIssue = dialogIssueKey ? issues.find((issue) => issue.key === dialogIssueKey) : undefined;
@@ -609,7 +618,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   }
 
   return (
-    <main className="dashboard-shell modern-explorer-shell">
+    <main className={`dashboard-shell modern-explorer-shell ${explorerView === "table" ? "table-shell" : ""}`}>
       <section className="board-hero" aria-labelledby="board-title">
         <div className="board-identity">
           <p className="eyebrow">Release dashboard</p>
@@ -621,8 +630,18 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
           </p>
           <div className="hero-actions" aria-label="Board links">
             <a className="button-link primary" href={data?.dashboardUrl || "../"}>Current board</a>
-            <a className="button-link" href={data?.jiraFilterUrl || "#"} target="_blank" rel="noreferrer">Jira filter</a>
-            <a className="button-link" href={bridgeEntryUrl(data)} target="_blank" rel="noreferrer">Cloudflare bridge</a>
+            <a className="button-link icon-link" href={data?.jiraFilterUrl || "#"} target="_blank" rel="noreferrer">
+              <JiraLogoIcon />
+              <span>Jira filter</span>
+            </a>
+            <a className={`button-link icon-link bridge-link ${bridgeButton.tone}`} href={bridgeEntryUrl(data)} target="_blank" rel="noreferrer">
+              <CloudflareLogoIcon />
+              <span>Cloudflare bridge</span>
+              <span className="bridge-status-indicator" aria-label={`Bridge status: ${bridgeButton.label}`}>
+                <span className="bridge-status-dot" aria-hidden="true" />
+                <span>{bridgeButton.label}</span>
+              </span>
+            </a>
           </div>
         </div>
 
@@ -812,6 +831,39 @@ function ViewToggle({ value, onChange }: { value: ExplorerView; onChange: (value
         </button>
       </div>
     </div>
+  );
+}
+
+function JiraLogoIcon() {
+  return (
+    <svg className="button-icon jira-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 2.8 21.2 12 12 21.2 2.8 12 12 2.8Z" fill="url(#jira-icon-gradient)" />
+      <path d="M12 7.1 16.9 12 12 16.9 7.1 12 12 7.1Z" fill="#ffffff" opacity="0.92" />
+      <path d="M12 4.8 19.2 12 15.8 15.4 8.6 8.2 12 4.8Z" fill="#2684ff" opacity="0.92" />
+      <path d="M8.2 8.6 15.4 15.8 12 19.2 4.8 12 8.2 8.6Z" fill="#0052cc" opacity="0.9" />
+      <defs>
+        <linearGradient id="jira-icon-gradient" x1="3" x2="21" y1="3" y2="21" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#2684ff" />
+          <stop offset="1" stopColor="#0052cc" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+function CloudflareLogoIcon() {
+  return (
+    <svg className="button-icon cloudflare-icon" viewBox="0 0 28 20" aria-hidden="true" focusable="false">
+      <path d="M9.9 17.5h11.8c2.5 0 4.6-2 4.6-4.5s-2-4.5-4.5-4.5h-.8C20.2 4.8 17 2 13.2 2 9 2 5.5 5.3 5.2 9.4 3.1 9.8 1.6 11.5 1.6 13.5c0 2.2 1.8 4 4.1 4h4.2Z" fill="url(#cloudflare-icon-gradient)" />
+      <path d="M10.1 17.5h11.5c2.5 0 4.7-1.9 4.7-4.5 0-1.1-.4-2.1-1.1-2.9-2.1 5.4-8.4 6-15.1 7.4Z" fill="#faae40" opacity="0.75" />
+      <defs>
+        <linearGradient id="cloudflare-icon-gradient" x1="2" x2="27" y1="2" y2="18" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#faae40" />
+          <stop offset="0.52" stopColor="#f58220" />
+          <stop offset="1" stopColor="#d85c00" />
+        </linearGradient>
+      </defs>
+    </svg>
   );
 }
 
@@ -3050,6 +3102,28 @@ function buildOperationsHealth(data: DashboardData | null, loadError: string): O
     summaryTone: hasDanger ? "danger" : hasAttention ? "attention" : "good",
     items: [dataStatus, pagesStatus, bridgeStatus, actionsStatus, slackStatus]
   };
+}
+
+function bridgeButtonStatus(data: DashboardData | null): BridgeButtonStatus {
+  const endpoint = data?.assigneeDispatchEndpoint || "";
+
+  if (!data) {
+    return { label: "Loading", tone: "neutral" };
+  }
+
+  if (!endpoint) {
+    return { label: "Missing", tone: "danger" };
+  }
+
+  if (isLocalBridgeEndpoint(endpoint)) {
+    return { label: "Local", tone: "danger" };
+  }
+
+  if (isHostedBridgeEndpoint(endpoint)) {
+    return { label: "Login", tone: "attention" };
+  }
+
+  return { label: "External", tone: "attention" };
 }
 
 function bridgeHealth(data: DashboardData | null): { status: string; detail: string; tone: HealthTone; statusUrl: string; linkLabel: string } {

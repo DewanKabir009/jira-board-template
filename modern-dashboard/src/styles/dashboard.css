@@ -179,6 +179,7 @@ h3 {
   min-height: 40px;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   padding: 0 14px;
@@ -199,6 +200,63 @@ h3 {
 .button-link:hover,
 .button-link:focus-visible {
   border-color: var(--green);
+}
+
+.button-link.icon-link {
+  padding-inline: 12px;
+}
+
+.button-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+
+.bridge-link {
+  padding-right: 8px;
+}
+
+.bridge-status-indicator {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(0, 95, 204, 0.18);
+  border-radius: 999px;
+  margin-left: 2px;
+  padding: 0 8px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.bridge-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 3px rgba(0, 95, 204, 0.12);
+}
+
+.bridge-link.good .bridge-status-indicator {
+  border-color: rgba(0, 122, 77, 0.2);
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.bridge-link.attention .bridge-status-indicator,
+.bridge-link.warning .bridge-status-indicator {
+  border-color: rgba(245, 130, 32, 0.28);
+  background: #fff3df;
+  color: #a54b00;
+}
+
+.bridge-link.danger .bridge-status-indicator {
+  border-color: rgba(201, 20, 77, 0.24);
+  background: var(--rose-soft);
+  color: var(--rose);
 }
 
 .metric-grid {
@@ -1343,6 +1401,10 @@ h3 {
   max-width: 1600px;
 }
 
+.modern-explorer-shell.table-shell {
+  max-width: none;
+}
+
 .explorer-panel,
 .ticket-detail-panel,
 .table-card {
@@ -1754,6 +1816,23 @@ h3 {
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.36fr);
   gap: 16px;
   align-items: start;
+}
+
+@media (min-width: 1201px) {
+  .modern-explorer-shell.table-shell {
+    padding-inline: clamp(18px, 2vw, 32px);
+  }
+
+  .explorer-body.table-mode {
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 390px);
+  }
+
+  .explorer-body.table-mode .ticket-detail-panel {
+    position: sticky;
+    top: 16px;
+    max-height: calc(100vh - 32px);
+    overflow: auto;
+  }
 }
 
 .table-card {
