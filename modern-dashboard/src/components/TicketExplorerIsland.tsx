@@ -5,7 +5,17 @@ import {
   type SortingState,
   useReactTable
 } from "@tanstack/react-table";
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useId, useMemo, useState } from "react";
+import {
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useState
+} from "react";
 
 type PullChange = string | {
   key?: string;
@@ -15,7 +25,15 @@ type PullChange = string | {
   summary?: string;
   status?: string;
   updatedDisplay?: string;
-  parent?: { key?: string; summary?: string } | string | null;
+  parent?: {
+    key?: string;
+    url?: string;
+    summary?: string;
+    description?: string;
+    type?: string;
+    status?: string;
+    priority?: string;
+  } | string | null;
   before?: string;
   after?: string;
   changes?: Array<{ field?: string; before?: string; after?: string; from?: string; to?: string }>;
@@ -76,6 +94,7 @@ type DashboardData = {
   dashboardVersion?: string;
   repositorySlug?: string;
   dashboardUrl?: string;
+  siteUrl?: string;
   jiraFilterUrl?: string;
   assigneeDispatchEndpoint?: string;
   assigneeOptions?: string[];
@@ -244,6 +263,12 @@ type BridgeButtonStatus = {
   tone: HealthTone;
 };
 
+type TicketSearchStatus = {
+  message: string;
+  tone: HealthTone;
+  href?: string;
+};
+
 const PAGE_SIZE_OPTIONS = [15, 25, 50];
 const CARD_COLUMN_COUNT = 3;
 const DEFAULT_ASSIGNABLE_ASSIGNEES = [
@@ -286,6 +311,10 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   const [componentListCopied, setComponentListCopied] = useState(false);
   const [selectedKey, setSelectedKey] = useState("");
   const [dialogIssueKey, setDialogIssueKey] = useState("");
+  const [lookupDialogIssue, setLookupDialogIssue] = useState<Issue | null>(null);
+  const [ticketSearchProject, setTicketSearchProject] = useState("");
+  const [ticketSearchNumber, setTicketSearchNumber] = useState("");
+  const [ticketSearchStatus, setTicketSearchStatus] = useState<TicketSearchStatus>({ message: "", tone: "neutral" });
   const [assignmentStateByKey, setAssignmentStateByKey] = useState<Record<string, AssignmentRequestState>>({});
   const [sorting, setSorting] = useState<SortingState>([{ id: "updatedDisplay", desc: true }]);
   const [pageIndex, setPageIndex] = useState(0);
@@ -343,6 +372,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   const componentCounts = useMemo(() => buildComponentCounts(issues), [issues]);
   const assignableAssigneeOptions = useMemo(() => createAssignableAssigneeOptions(data, issues), [data, issues]);
   const bridgeButton = useMemo(() => bridgeButtonStatus(data), [data]);
+  const jiraProjectOptions = useMemo(() => createJiraProjectOptions(issues), [issues]);
 
   const filteredIssues = useMemo(() => {
     return issues.filter((issue) => matchesFilters(issue, filters, changeSets, activePreset));
@@ -546,15 +576,26 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   const pageCount = explorerView === "cards" ? cardPageCount : tablePageCount;
   const safePageIndex = Math.min(pageIndex, pageCount - 1);
   const visibleTicketGroups = orderedTicketGroups.slice(safePageIndex * pageSize, safePageIndex * pageSize + pageSize);
+  const selectedLookupIssue = lookupDialogIssue?.key === selectedKey ? lookupDialogIssue : undefined;
   const selectedIssue = issues.find((issue) => issue.key === selectedKey)
+    || selectedLookupIssue
     || orderedTicketGroups[0]?.issue
     || filteredIssues[0]
     || issues[0];
-  const dialogIssue = dialogIssueKey ? issues.find((issue) => issue.key === dialogIssueKey) : undefined;
+  const dialogIssue = dialogIssueKey
+    ? issues.find((issue) => issue.key === dialogIssueKey)
+      || (lookupDialogIssue?.key === dialogIssueKey ? lookupDialogIssue : undefined)
+    : undefined;
 
   useEffect(() => {
     setPageIndex(0);
   }, [filters, pageSize, explorerView]);
+
+  useEffect(() => {
+    if (!ticketSearchProject && jiraProjectOptions.length) {
+      setTicketSearchProject(jiraProjectOptions[0].value);
+    }
+  }, [jiraProjectOptions, ticketSearchProject]);
 
   useEffect(() => {
     if (selectedIssue?.key && selectedIssue.key !== selectedKey) {
@@ -601,6 +642,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
       return;
     }
 
+    setLookupDialogIssue(null);
     setSelectedKey(key);
     setDialogIssueKey(key);
   }
@@ -614,6 +656,39 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
     copyTextToClipboard(value).then(() => {
       setComponentListCopied(true);
       window.setTimeout(() => setComponentListCopied(false), 1400);
+    });
+  }
+
+  function searchJiraTicket() {
+    const ticketKey = normalizeTicketSearchKey(ticketSearchProject || jiraProjectOptions[0]?.value || "CORE", ticketSearchNumber);
+
+    if (!ticketKey) {
+      setTicketSearchStatus({
+        message: "Enter a ticket number or a full ticket key.",
+        tone: "warning"
+      });
+      return;
+    }
+
+    const foundIssue = findTicketInSnapshot(issues, ticketKey);
+    const jiraHref = jiraTicketUrl(data, issues, ticketKey);
+
+    if (!foundIssue) {
+      setTicketSearchStatus({
+        message: `${ticketKey} is not in this board snapshot yet. Open it directly in Jira or refresh the board data after it is added to this release.`,
+        tone: "attention",
+        href: jiraHref
+      });
+      return;
+    }
+
+    setLookupDialogIssue(foundIssue);
+    setSelectedKey(foundIssue.key || ticketKey);
+    setDialogIssueKey(foundIssue.key || ticketKey);
+    setTicketSearchStatus({
+      message: `${foundIssue.key || ticketKey} opened from the loaded Jira snapshot.`,
+      tone: "good",
+      href: foundIssue.url || jiraHref
     });
   }
 
@@ -683,6 +758,16 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
             </div>
           </div>
         </div>
+
+        <JiraTicketSearch
+          projectOptions={jiraProjectOptions}
+          project={ticketSearchProject}
+          ticketNumber={ticketSearchNumber}
+          status={ticketSearchStatus}
+          onProjectChange={setTicketSearchProject}
+          onTicketNumberChange={setTicketSearchNumber}
+          onSubmit={searchJiraTicket}
+        />
 
         <div className="explorer-filters" aria-label="Ticket filters">
           <label>
@@ -758,7 +843,8 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
                 openSubtaskParents={openSubtaskParents}
                 assignmentOptions={assignableAssigneeOptions}
                 assignmentStates={assignmentStateByKey}
-                onSelectTicket={openTicketDialog}
+                onSelectTicket={(key) => setSelectedKey(key)}
+                onOpenTicket={openTicketDialog}
                 onAssign={submitAssigneeChange}
                 onToggleSubtasks={toggleSubtasks}
               />
@@ -864,6 +950,69 @@ function CloudflareLogoIcon() {
         </linearGradient>
       </defs>
     </svg>
+  );
+}
+
+function JiraTicketSearch({
+  projectOptions,
+  project,
+  ticketNumber,
+  status,
+  onProjectChange,
+  onTicketNumberChange,
+  onSubmit
+}: {
+  projectOptions: SelectOption[];
+  project: string;
+  ticketNumber: string;
+  status: TicketSearchStatus;
+  onProjectChange: (value: string) => void;
+  onTicketNumberChange: (value: string) => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <form
+      className="jira-ticket-search"
+      aria-label="Jira ticket search"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
+      <div className="jira-ticket-search-title">
+        <JiraLogoIcon />
+        <div>
+          <p className="eyebrow">Jira ticket search</p>
+          <h3>Open ticket details</h3>
+        </div>
+      </div>
+      <div className="jira-ticket-search-controls">
+        <SelectFilter
+          label="Project"
+          value={project}
+          options={projectOptions}
+          includeAll={false}
+          allLabel="Project"
+          onChange={onProjectChange}
+        />
+        <label>
+          <span>Ticket number</span>
+          <input
+            value={ticketNumber}
+            inputMode="numeric"
+            placeholder="14474 or CORE-14474"
+            onChange={(event) => onTicketNumberChange(event.target.value)}
+          />
+        </label>
+        <button type="submit">Search Jira</button>
+      </div>
+      {status.message ? (
+        <p className={`jira-ticket-search-status ${status.tone}`} role="status">
+          <span>{status.message}</span>
+          {status.href ? <a href={status.href} target="_blank" rel="noreferrer">Open Jira</a> : null}
+        </p>
+      ) : null}
+    </form>
   );
 }
 
@@ -1079,6 +1228,7 @@ function TicketTableView({
   assignmentOptions,
   assignmentStates,
   onSelectTicket,
+  onOpenTicket,
   onAssign,
   onToggleSubtasks
 }: {
@@ -1089,6 +1239,7 @@ function TicketTableView({
   assignmentOptions: SelectOption[];
   assignmentStates: Record<string, AssignmentRequestState>;
   onSelectTicket: (key: string) => void;
+  onOpenTicket: (key: string) => void;
   onAssign: (issue: Issue, assignee: string) => void | Promise<void>;
   onToggleSubtasks: (key: string) => void;
 }) {
@@ -1122,6 +1273,7 @@ function TicketTableView({
           assignmentOptions={assignmentOptions}
           assignmentStates={assignmentStates}
           onSelectTicket={onSelectTicket}
+          onOpenTicket={onOpenTicket}
           onAssign={onAssign}
           onToggleSubtasks={onToggleSubtasks}
           key={group.issue.key || `table-group-${index}`}
@@ -1140,6 +1292,7 @@ function TicketTableGroup({
   assignmentOptions,
   assignmentStates,
   onSelectTicket,
+  onOpenTicket,
   onAssign,
   onToggleSubtasks
 }: {
@@ -1151,6 +1304,7 @@ function TicketTableGroup({
   assignmentOptions: SelectOption[];
   assignmentStates: Record<string, AssignmentRequestState>;
   onSelectTicket: (key: string) => void;
+  onOpenTicket: (key: string) => void;
   onAssign: (issue: Issue, assignee: string) => void | Promise<void>;
   onToggleSubtasks: (key: string) => void;
 }) {
@@ -1170,7 +1324,14 @@ function TicketTableGroup({
 
   return (
     <section className={groupClassName} role="rowgroup">
-      <div className="grouped-table-row parent-ticket-row" role="row" aria-selected={isParentSelected}>
+      <div
+        className="grouped-table-row parent-ticket-row"
+        role="row"
+        aria-selected={isParentSelected}
+        tabIndex={0}
+        onClick={(event) => selectTableRow(event, issue.key || "", onSelectTicket)}
+        onKeyDown={(event) => activateTableRow(event, issue.key || "", onSelectTicket)}
+      >
         <div className="grouped-table-cell ticket-cell" role="cell" data-label="Ticket">
           <a className="table-ticket-key" href={issue.url || "#"} target="_blank" rel="noreferrer">
             {issue.key || "Ticket"}
@@ -1200,7 +1361,7 @@ function TicketTableGroup({
         <div className="grouped-table-cell grouped-table-actions" role="cell" data-label="Actions">
           <div className="table-action-buttons">
             <a href={issue.url || "#"} target="_blank" rel="noreferrer">Jira</a>
-            <button type="button" onClick={() => onSelectTicket(issue.key || "")}>Details</button>
+            <button type="button" onClick={() => onOpenTicket(issue.key || "")}>Details</button>
           </div>
           <button
             type="button"
@@ -1229,7 +1390,14 @@ function TicketTableGroup({
               className={selectedKey === subtask.key ? "grouped-table-subtask-item selected-subtask-item" : "grouped-table-subtask-item"}
               key={subtask.key || `${parentId}-${subtask.summary}`}
             >
-              <div className={selectedKey === subtask.key ? "grouped-table-row subtask-table-row selected" : "grouped-table-row subtask-table-row"} role="row" aria-selected={selectedKey === subtask.key}>
+              <div
+                className={selectedKey === subtask.key ? "grouped-table-row subtask-table-row selected" : "grouped-table-row subtask-table-row"}
+                role="row"
+                aria-selected={selectedKey === subtask.key}
+                tabIndex={0}
+                onClick={(event) => selectTableRow(event, subtask.key || "", onSelectTicket)}
+                onKeyDown={(event) => activateTableRow(event, subtask.key || "", onSelectTicket)}
+              >
                 <div className="grouped-table-cell ticket-cell" role="cell" data-label="Ticket">
                   <a className="table-ticket-key" href={subtask.url || "#"} target="_blank" rel="noreferrer">
                     {subtask.key || "Subtask"}
@@ -1254,7 +1422,7 @@ function TicketTableGroup({
                 <div className="grouped-table-cell grouped-table-actions" role="cell" data-label="Actions">
                   <div className="table-action-buttons">
                     <a href={subtask.url || "#"} target="_blank" rel="noreferrer">Jira</a>
-                    <button type="button" onClick={() => onSelectTicket(subtask.key || "")}>Details</button>
+                    <button type="button" onClick={() => onOpenTicket(subtask.key || "")}>Details</button>
                   </div>
                 </div>
               </div>
@@ -1355,6 +1523,29 @@ function TicketCardView({
       ))}
     </div>
   );
+}
+
+function selectTableRow(event: ReactMouseEvent<HTMLElement>, key: string, onSelectTicket: (key: string) => void) {
+  if (!key || isInteractiveTicketTarget(event.target)) {
+    return;
+  }
+
+  onSelectTicket(key);
+}
+
+function activateTableRow(event: ReactKeyboardEvent<HTMLElement>, key: string, onSelectTicket: (key: string) => void) {
+  if (!key || isInteractiveTicketTarget(event.target)) {
+    return;
+  }
+
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    onSelectTicket(key);
+  }
+}
+
+function isInteractiveTicketTarget(target: EventTarget | null) {
+  return target instanceof HTMLElement && Boolean(target.closest("a, button, input, select, textarea, [role='button'], [role='option']"));
 }
 
 function GroupedTicketCard({
@@ -2130,6 +2321,72 @@ function createAssignableAssigneeOptions(data: DashboardData | null, issues: Iss
     label: name,
     avatarUrl: avatarByName.get(name) || ""
   }));
+}
+
+function createJiraProjectOptions(issues: Issue[]): SelectOption[] {
+  const projects = uniqueStrings(issues.map((issue) => projectKeyFromIssue(issue.key || "")));
+  return toSelectOptions(projects.length ? projects : ["CORE"]);
+}
+
+function projectKeyFromIssue(key: string) {
+  const match = String(key || "").trim().toUpperCase().match(/^([A-Z][A-Z0-9]+)-\d+$/);
+  return match?.[1] || "";
+}
+
+function normalizeTicketSearchKey(project: string, value: string) {
+  const raw = String(value || "").trim().toUpperCase().replace(/\s+/g, "");
+
+  if (/^[A-Z][A-Z0-9]+-\d+$/.test(raw)) {
+    return raw;
+  }
+
+  const number = raw.replace(/\D+/g, "");
+  const normalizedProject = projectKeyFromIssue(`${project}-1`) || String(project || "").trim().toUpperCase();
+
+  return normalizedProject && number ? `${normalizedProject}-${number}` : "";
+}
+
+function findTicketInSnapshot(issues: Issue[], ticketKey: string): Issue | undefined {
+  const normalizedKey = ticketKey.toUpperCase();
+  const directIssue = issues.find((issue) => (issue.key || "").toUpperCase() === normalizedKey);
+
+  if (directIssue) {
+    return directIssue;
+  }
+
+  for (const issue of issues) {
+    if (!issue.parent || typeof issue.parent === "string") {
+      continue;
+    }
+
+    if ((issue.parent.key || "").toUpperCase() === normalizedKey) {
+      return {
+        key: issue.parent.key,
+        url: issue.parent.url,
+        summary: issue.parent.summary,
+        description: issue.parent.description,
+        type: issue.parent.type,
+        status: issue.parent.status,
+        priority: issue.parent.priority,
+        isSubtask: false,
+        components: [],
+        parent: null
+      };
+    }
+  }
+
+  return undefined;
+}
+
+function jiraTicketUrl(data: DashboardData | null, issues: Issue[], ticketKey: string) {
+  const siteUrl = (data?.siteUrl || jiraSiteUrlFromIssues(issues) || "https://golfnow.atlassian.net").replace(/\/$/, "");
+  return `${siteUrl}/browse/${ticketKey}`;
+}
+
+function jiraSiteUrlFromIssues(issues: Issue[]) {
+  const url = issues.find((issue) => issue.url)?.url || "";
+  const match = url.match(/^(https?:\/\/[^/]+)/i);
+  return match?.[1] || "";
 }
 
 function uniqueStrings(values: string[]) {
