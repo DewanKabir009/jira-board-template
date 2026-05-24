@@ -272,7 +272,7 @@ async function dispatchWorkflow(env, repositorySlug, workflowFile, inputs) {
 
 function jiraConfig(env) {
   const cloudId = env.JIRA_CLOUD_ID || "24a77690-829a-4704-94eb-fafef6370d21";
-  const email = env.JIRA_EMAIL || "";
+  const email = env.JIRA_EMAIL || "dewan.kabir@versantmedia.com";
   const token = env.JIRA_MCP_TOKEN || env.JIRA_API_TOKEN || "";
   const siteUrl = (env.JIRA_SITE_URL || "https://golfnow.atlassian.net").replace(/\/$/, "");
 
