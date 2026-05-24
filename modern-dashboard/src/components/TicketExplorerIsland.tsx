@@ -269,6 +269,11 @@ type TicketSearchStatus = {
   href?: string;
 };
 
+type JiraBridgeProject = {
+  key?: string;
+  name?: string;
+};
+
 const PAGE_SIZE_OPTIONS = [15, 25, 50];
 const CARD_COLUMN_COUNT = 3;
 const DEFAULT_ASSIGNABLE_ASSIGNEES = [
@@ -315,6 +320,8 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   const [ticketSearchProject, setTicketSearchProject] = useState("");
   const [ticketSearchNumber, setTicketSearchNumber] = useState("");
   const [ticketSearchStatus, setTicketSearchStatus] = useState<TicketSearchStatus>({ message: "", tone: "neutral" });
+  const [ticketSearchBusy, setTicketSearchBusy] = useState(false);
+  const [jiraBridgeProjects, setJiraBridgeProjects] = useState<SelectOption[]>([]);
   const [assignmentStateByKey, setAssignmentStateByKey] = useState<Record<string, AssignmentRequestState>>({});
   const [sorting, setSorting] = useState<SortingState>([{ id: "updatedDisplay", desc: true }]);
   const [pageIndex, setPageIndex] = useState(0);
@@ -372,7 +379,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   const componentCounts = useMemo(() => buildComponentCounts(issues), [issues]);
   const assignableAssigneeOptions = useMemo(() => createAssignableAssigneeOptions(data, issues), [data, issues]);
   const bridgeButton = useMemo(() => bridgeButtonStatus(data), [data]);
-  const jiraProjectOptions = useMemo(() => createJiraProjectOptions(issues), [issues]);
+  const jiraProjectOptions = useMemo(() => createJiraProjectOptions(issues, jiraBridgeProjects), [issues, jiraBridgeProjects]);
 
   const filteredIssues = useMemo(() => {
     return issues.filter((issue) => matchesFilters(issue, filters, changeSets, activePreset));
@@ -568,6 +575,44 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
     getSortedRowModel: getSortedRowModel()
   });
 
+  useEffect(() => {
+    let cancelled = false;
+    const endpoint = bridgeProjectsEndpoint(data);
+
+    if (!endpoint) {
+      setJiraBridgeProjects([]);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    fetch(endpoint, {
+      credentials: "include",
+      headers: { Accept: "application/json" }
+    })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.ok) {
+          throw new Error(payload?.message || "Jira projects are not available from the bridge.");
+        }
+        return Array.isArray(payload.projects) ? payload.projects : [];
+      })
+      .then((projects: JiraBridgeProject[]) => {
+        if (!cancelled) {
+          setJiraBridgeProjects(projectsToSelectOptions(projects));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setJiraBridgeProjects([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [data?.assigneeDispatchEndpoint]);
+
   const orderedTicketGroups = useMemo(() => (
     explorerView === "table" ? [...ticketGroups].sort(compareTicketGroups) : ticketGroups
   ), [explorerView, ticketGroups]);
@@ -659,7 +704,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
     });
   }
 
-  function searchJiraTicket() {
+  async function searchJiraTicket() {
     const ticketKey = normalizeTicketSearchKey(ticketSearchProject || jiraProjectOptions[0]?.value || "CORE", ticketSearchNumber);
 
     if (!ticketKey) {
@@ -670,8 +715,51 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
       return;
     }
 
-    const foundIssue = findTicketInSnapshot(issues, ticketKey);
     const jiraHref = jiraTicketUrl(data, issues, ticketKey);
+    setTicketSearchBusy(true);
+    setTicketSearchStatus({
+      message: `Searching Jira for ${ticketKey}...`,
+      tone: "neutral"
+    });
+
+    try {
+      const bridgeIssue = await fetchJiraIssueFromBridge(data, ticketKey);
+      if (bridgeIssue) {
+        setLookupDialogIssue(bridgeIssue);
+        setSelectedKey(bridgeIssue.key || ticketKey);
+        setDialogIssueKey(bridgeIssue.key || ticketKey);
+        setTicketSearchStatus({
+          message: `${bridgeIssue.key || ticketKey} opened from Jira.`,
+          tone: "good",
+          href: bridgeIssue.url || jiraHref
+        });
+        return;
+      }
+    } catch (error) {
+      const foundIssue = findTicketInSnapshot(issues, ticketKey);
+      if (foundIssue) {
+        setLookupDialogIssue(foundIssue);
+        setSelectedKey(foundIssue.key || ticketKey);
+        setDialogIssueKey(foundIssue.key || ticketKey);
+        setTicketSearchStatus({
+          message: `${foundIssue.key || ticketKey} opened from the board snapshot. Jira bridge lookup is not available yet: ${error instanceof Error ? error.message : "unknown bridge error"}`,
+          tone: "attention",
+          href: foundIssue.url || jiraHref
+        });
+        return;
+      }
+
+      setTicketSearchStatus({
+        message: `${ticketKey} could not be loaded from Jira yet. ${error instanceof Error ? error.message : "The Jira bridge lookup failed."}`,
+        tone: "warning",
+        href: isHostedBridgeEndpoint(data?.assigneeDispatchEndpoint || "") ? bridgeEntryUrl(data) : jiraHref
+      });
+      return;
+    } finally {
+      setTicketSearchBusy(false);
+    }
+
+    const foundIssue = findTicketInSnapshot(issues, ticketKey);
 
     if (!foundIssue) {
       setTicketSearchStatus({
@@ -764,6 +852,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
           project={ticketSearchProject}
           ticketNumber={ticketSearchNumber}
           status={ticketSearchStatus}
+          busy={ticketSearchBusy}
           onProjectChange={setTicketSearchProject}
           onTicketNumberChange={setTicketSearchNumber}
           onSubmit={searchJiraTicket}
@@ -958,6 +1047,7 @@ function JiraTicketSearch({
   project,
   ticketNumber,
   status,
+  busy,
   onProjectChange,
   onTicketNumberChange,
   onSubmit
@@ -966,9 +1056,10 @@ function JiraTicketSearch({
   project: string;
   ticketNumber: string;
   status: TicketSearchStatus;
+  busy: boolean;
   onProjectChange: (value: string) => void;
   onTicketNumberChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: () => void | Promise<void>;
 }) {
   return (
     <form
@@ -1004,7 +1095,7 @@ function JiraTicketSearch({
             onChange={(event) => onTicketNumberChange(event.target.value)}
           />
         </label>
-        <button type="submit">Search Jira</button>
+        <button type="submit" disabled={busy}>{busy ? "Searching" : "Search Jira"}</button>
       </div>
       {status.message ? (
         <p className={`jira-ticket-search-status ${status.tone}`} role="status">
@@ -2323,9 +2414,39 @@ function createAssignableAssigneeOptions(data: DashboardData | null, issues: Iss
   }));
 }
 
-function createJiraProjectOptions(issues: Issue[]): SelectOption[] {
-  const projects = uniqueStrings(issues.map((issue) => projectKeyFromIssue(issue.key || "")));
-  return toSelectOptions(projects.length ? projects : ["CORE"]);
+function createJiraProjectOptions(issues: Issue[], bridgeProjects: SelectOption[]): SelectOption[] {
+  const issueProjects = uniqueStrings(issues.map((issue) => projectKeyFromIssue(issue.key || "")));
+  const merged = new Map<string, SelectOption>();
+
+  for (const option of bridgeProjects) {
+    const key = projectKeyFromIssue(`${option.value}-1`) || option.value;
+    if (key) {
+      merged.set(key, { value: key, label: option.label || key });
+    }
+  }
+
+  for (const project of issueProjects) {
+    if (!merged.has(project)) {
+      merged.set(project, { value: project, label: project });
+    }
+  }
+
+  if (!merged.size) {
+    merged.set("CORE", { value: "CORE", label: "CORE" });
+  }
+
+  return Array.from(merged.values()).sort((a, b) => a.value.localeCompare(b.value));
+}
+
+function projectsToSelectOptions(projects: JiraBridgeProject[]): SelectOption[] {
+  return uniqueStrings(projects.map((project) => project.key || ""))
+    .map((key) => {
+      const project = projects.find((candidate) => candidate.key === key);
+      return {
+        value: key,
+        label: project?.name ? `${key} - ${project.name}` : key
+      };
+    });
 }
 
 function projectKeyFromIssue(key: string) {
@@ -2381,6 +2502,65 @@ function findTicketInSnapshot(issues: Issue[], ticketKey: string): Issue | undef
 function jiraTicketUrl(data: DashboardData | null, issues: Issue[], ticketKey: string) {
   const siteUrl = (data?.siteUrl || jiraSiteUrlFromIssues(issues) || "https://golfnow.atlassian.net").replace(/\/$/, "");
   return `${siteUrl}/browse/${ticketKey}`;
+}
+
+async function fetchJiraIssueFromBridge(data: DashboardData | null, ticketKey: string): Promise<Issue | null> {
+  const endpoint = bridgeIssueLookupEndpoint(data, ticketKey);
+
+  if (!endpoint) {
+    return null;
+  }
+
+  const response = await fetch(endpoint, {
+    credentials: "include",
+    headers: { Accept: "application/json" }
+  });
+  const payload = await response.json().catch(() => ({}));
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok || !payload?.ok) {
+    throw new Error(payload?.message || "The Jira bridge lookup failed.");
+  }
+
+  return payload.issue || null;
+}
+
+function bridgeIssueLookupEndpoint(data: DashboardData | null, ticketKey: string) {
+  const base = bridgeApiBase(data);
+  if (!base) {
+    return "";
+  }
+
+  base.pathname = "/issue";
+  base.search = new URLSearchParams({ issueKey: ticketKey }).toString();
+  return base.toString();
+}
+
+function bridgeProjectsEndpoint(data: DashboardData | null) {
+  const base = bridgeApiBase(data);
+  if (!base) {
+    return "";
+  }
+
+  base.pathname = "/projects";
+  base.search = "";
+  return base.toString();
+}
+
+function bridgeApiBase(data: DashboardData | null) {
+  const endpoint = data?.assigneeDispatchEndpoint || "";
+  if (!endpoint) {
+    return null;
+  }
+
+  try {
+    return new URL(endpoint);
+  } catch {
+    return null;
+  }
 }
 
 function jiraSiteUrlFromIssues(issues: Issue[]) {
