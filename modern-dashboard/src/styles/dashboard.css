@@ -3026,13 +3026,28 @@ h3 {
   font-size: 1rem;
 }
 
-.ticket-comments-heading span {
+.ticket-comments-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.ticket-comments-heading span,
+.ticket-comments-heading a {
   border-radius: 999px;
   background: rgba(0, 95, 204, 0.1);
   color: var(--blue);
   font-size: 0.76rem;
   font-weight: 900;
   padding: 5px 9px;
+}
+
+.ticket-comments-heading a {
+  border: 1px solid rgba(0, 95, 204, 0.22);
+  background: #ffffff;
+  text-decoration: none;
 }
 
 .ticket-comments-list {
@@ -3086,6 +3101,35 @@ h3 {
   font-size: 0.9rem;
   line-height: 1.52;
   overflow-wrap: anywhere;
+}
+
+.ticket-comment-body .description-media-missing {
+  display: inline-flex;
+  margin: 2px 0;
+}
+
+.ticket-comment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.ticket-comment-actions span,
+.ticket-comment-actions a {
+  border-radius: 999px;
+  background: rgba(0, 153, 68, 0.1);
+  color: #006b39;
+  font-size: 0.75rem;
+  font-weight: 900;
+  padding: 5px 9px;
+  text-decoration: none;
+}
+
+.ticket-comment-actions a {
+  border: 1px solid rgba(0, 144, 213, 0.28);
+  background: #ffffff;
+  color: var(--blue);
 }
 
 .ticket-comment-body p,

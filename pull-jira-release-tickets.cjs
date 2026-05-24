@@ -84,6 +84,11 @@ function jiraUrl(key) {
   return `${siteUrl}/browse/${key}`;
 }
 
+function jiraCommentUrl(issueKey, commentId) {
+  const base = jiraUrl(issueKey);
+  return commentId ? `${base}?focusedCommentId=${encodeURIComponent(commentId)}` : base;
+}
+
 function formatDate(input) {
   if (!input) {
     return "";
@@ -374,7 +379,11 @@ function renderMediaNode(media, context) {
   const alt = asset.alt || media.attrs?.alt || "Jira description media";
 
   if (!asset.relativePath || asset.missing) {
-    return `<div class="description-media-missing">${escapeHtml(alt)} could not be embedded.</div>`;
+    const message = `${escapeHtml(alt)} could not be embedded.`;
+    if (context.missingMediaHref) {
+      return `<a class="description-media-missing" href="${escapeHtml(context.missingMediaHref)}" target="_blank" rel="noopener">${message} Open in Jira.</a>`;
+    }
+    return `<div class="description-media-missing">${message}</div>`;
   }
 
   if (asset.mediaType === "video") {
@@ -455,7 +464,7 @@ function renderAdfNode(node, context) {
   }
 }
 
-function descriptionToHtml(description, mediaAssets = []) {
+function descriptionToHtml(description, mediaAssets = [], options = {}) {
   if (!description) {
     return "";
   }
@@ -468,7 +477,7 @@ function descriptionToHtml(description, mediaAssets = []) {
       .join("");
   }
 
-  return renderAdfNode(description, { mediaAssets, mediaIndex: 0 }).trim();
+  return renderAdfNode(description, { mediaAssets, mediaIndex: 0, ...options }).trim();
 }
 
 async function buildRichDescription(issueKey, description, attachments) {
@@ -596,18 +605,35 @@ async function fetchIssueComments(issueKey) {
   return comments;
 }
 
-function serializeIssueComments(comments) {
-  const sortedComments = [...(comments || [])].sort((left, right) => {
+function sortCommentsByCreated(comments) {
+  return [...(comments || [])].sort((left, right) => {
     return new Date(left.created || 0).getTime() - new Date(right.created || 0).getTime();
   });
+}
 
-  return sortedComments.slice(-issueCommentLimit).map((comment) => {
+function latestIssueComment(comments) {
+  const sortedComments = sortCommentsByCreated(comments);
+  return sortedComments[sortedComments.length - 1] || null;
+}
+
+async function serializeIssueComments(comments, issueKey, attachments = []) {
+  const sortedComments = sortCommentsByCreated(comments);
+
+  return Promise.all(sortedComments.slice(-issueCommentLimit).map(async (comment, index) => {
     const author = comment.author || {};
     const bodyText = descriptionToText(comment.body);
-    const bodyHtml = descriptionToHtml(comment.body);
+    const commentUrl = jiraCommentUrl(issueKey, comment.id || "");
+    const mediaAssets = buildDescriptionMedia(comment.body, attachments, `${issueKey}/comments/${comment.id || index}`);
+    const downloaded = await Promise.all(mediaAssets.map(downloadMediaAsset));
+    const availableMediaAssets = mediaAssets.map((asset, assetIndex) => ({
+      ...asset,
+      missing: !downloaded[assetIndex],
+    }));
+    const bodyHtml = descriptionToHtml(comment.body, availableMediaAssets, { missingMediaHref: commentUrl });
 
     return {
       id: comment.id || "",
+      url: commentUrl,
       author: author.displayName || author.name || "Unknown",
       authorAccountId: author.accountId || "",
       authorAvatarUrl: avatarUrlForJiraUser(author),
@@ -615,10 +641,12 @@ function serializeIssueComments(comments) {
       createdDisplay: formatDate(comment.created),
       updated: comment.updated || "",
       updatedDisplay: comment.updated && comment.updated !== comment.created ? formatDate(comment.updated) : "",
+      hasMedia: mediaAssets.length > 0,
+      mediaCount: mediaAssets.length,
       body: bodyText,
       bodyHtml,
     };
-  });
+  }));
 }
 
 async function fetchAttachmentText(attachment) {
@@ -927,7 +955,8 @@ async function normalizeIssue(issue) {
   const testChecklist = await buildTestChecklist(issue.key, isSubtask, attachments, issueComments);
   const parentDescription = descriptionToText(parentFields.description);
   const assignedDeveloper = normalizeJiraUserField(issueFields.customfield_11800);
-  const serializedComments = serializeIssueComments(issueComments);
+  const serializedComments = await serializeIssueComments(issueComments, issue.key, attachments);
+  const latestComment = latestIssueComment(issueComments);
 
   return {
     key: issue.key,
@@ -940,6 +969,9 @@ async function normalizeIssue(issue) {
     descriptionMediaCount: richDescription.mediaCount,
     commentCount: issueComments.length,
     comments: serializedComments,
+    lastCommentUrl: latestComment ? jiraCommentUrl(issue.key, latestComment.id || "") : "",
+    lastCommentDisplay: latestComment ? formatDate(latestComment.created) : "",
+    lastCommentAuthor: latestComment?.author?.displayName || latestComment?.author?.name || "",
     testChecklist,
     type: issueType.name || "",
     isSubtask,

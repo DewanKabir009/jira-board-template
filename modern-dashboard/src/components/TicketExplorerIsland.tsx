@@ -76,6 +76,9 @@ type Issue = {
   descriptionMediaCount?: number;
   commentCount?: number;
   comments?: JiraComment[];
+  lastCommentUrl?: string;
+  lastCommentDisplay?: string;
+  lastCommentAuthor?: string;
   testChecklist?: {
     files?: Array<{ filename?: string; id?: string }>;
     total?: number;
@@ -89,6 +92,9 @@ type JiraComment = {
   authorAvatarUrl?: string;
   createdDisplay?: string;
   updatedDisplay?: string;
+  url?: string;
+  hasMedia?: boolean;
+  mediaCount?: number;
   body?: string;
   bodyHtml?: string;
 };
@@ -2815,14 +2821,24 @@ function TicketComments({ issue }: { issue: Issue }) {
   const comments = Array.isArray(issue.comments) ? issue.comments : [];
   const commentCount = Number(issue.commentCount ?? comments.length);
   const hasComments = comments.length > 0;
+  const latestComment = comments[comments.length - 1];
+  const latestCommentUrl = issue.lastCommentUrl || latestComment?.url || "";
+  const latestCommentLabel = issue.lastCommentDisplay
+    ? `Latest: ${issue.lastCommentDisplay}`
+    : latestComment?.createdDisplay
+      ? `Latest: ${latestComment.createdDisplay}`
+      : "Latest comment";
 
   return (
     <section className={hasComments ? "ticket-comments-panel" : "ticket-comments-panel is-empty"} aria-label={`Comments for ${issue.key || "ticket"}`}>
       <div className="ticket-comments-heading">
         <h3>Comments</h3>
-        <span>
-          {commentCount ? `${comments.length}${commentCount > comments.length ? ` of ${commentCount}` : ""} comment${commentCount === 1 ? "" : "s"}` : "No comments"}
-        </span>
+        <div className="ticket-comments-heading-actions">
+          <span>
+            {commentCount ? `${comments.length}${commentCount > comments.length ? ` of ${commentCount}` : ""} comment${commentCount === 1 ? "" : "s"}` : "No comments"}
+          </span>
+          {latestCommentUrl ? <a href={latestCommentUrl} target="_blank" rel="noreferrer">{latestCommentLabel}</a> : null}
+        </div>
       </div>
       {hasComments ? (
         <div className="ticket-comments-list">
@@ -2840,12 +2856,21 @@ function TicketComments({ issue }: { issue: Issue }) {
               ) : (
                 <DescriptionText description={comment.body || ""} />
               )}
+              {(comment.url || comment.hasMedia) ? (
+                <div className="ticket-comment-actions">
+                  {comment.hasMedia ? <span>{comment.mediaCount || 1} Jira media item{Number(comment.mediaCount || 1) === 1 ? "" : "s"}</span> : null}
+                  {comment.url ? <a href={comment.url} target="_blank" rel="noreferrer">Open comment in Jira</a> : null}
+                </div>
+              ) : null}
               {comment.updatedDisplay ? <p className="ticket-comment-edited">Edited {comment.updatedDisplay}</p> : null}
             </article>
           ))}
         </div>
       ) : (
-        <p className="description-empty">No comments were pulled into this dashboard artifact.</p>
+        <p className="description-empty">
+          No comments were pulled into this dashboard artifact.
+          {latestCommentUrl ? <> <a href={latestCommentUrl} target="_blank" rel="noreferrer">Open the latest Jira comment.</a></> : null}
+        </p>
       )}
     </section>
   );
