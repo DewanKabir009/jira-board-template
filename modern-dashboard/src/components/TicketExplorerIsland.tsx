@@ -3162,6 +3162,7 @@ function groupIssuesForCards(issues: Issue[], filters: Filters, changeSets: Chan
   const mainIssues: Issue[] = [];
   const subtasksByParent = new Map<string, Issue[]>();
   const orphanSubtasks: Issue[] = [];
+  const isAssigneeScoped = Boolean(filters.assignee);
 
   for (const issue of issues) {
     if (!issue.isSubtask) {
@@ -3189,6 +3190,10 @@ function groupIssuesForCards(issues: Issue[], filters: Filters, changeSets: Chan
     const mainMatches = matchesFilters(issue, filters, changeSets, activePreset);
     const matchingSubtasks = subtasks.filter((subtask) => matchesFilters(subtask, filters, changeSets, activePreset));
 
+    if (isAssigneeScoped && !mainMatches) {
+      continue;
+    }
+
     if (!mainMatches && matchingSubtasks.length === 0) {
       continue;
     }
@@ -3196,7 +3201,7 @@ function groupIssuesForCards(issues: Issue[], filters: Filters, changeSets: Chan
     grouped.push({
       issue,
       subtasks,
-      visibleSubtasks: mainMatches && filters.parent !== "subtasks" ? subtasks : matchingSubtasks,
+      visibleSubtasks: mainMatches && filters.parent !== "subtasks" && !isAssigneeScoped ? subtasks : matchingSubtasks,
       matchedBySubtask: !mainMatches && matchingSubtasks.length > 0
     });
 
