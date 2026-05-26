@@ -3190,10 +3190,6 @@ function groupIssuesForCards(issues: Issue[], filters: Filters, changeSets: Chan
     const mainMatches = matchesFilters(issue, filters, changeSets, activePreset);
     const matchingSubtasks = subtasks.filter((subtask) => matchesFilters(subtask, filters, changeSets, activePreset));
 
-    if (isAssigneeScoped && !mainMatches) {
-      continue;
-    }
-
     if (!mainMatches && matchingSubtasks.length === 0) {
       continue;
     }
