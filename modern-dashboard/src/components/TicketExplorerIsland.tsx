@@ -2735,7 +2735,7 @@ function TicketDetail({
       </div>
       <TicketDetailFields issue={issue} checklistTotal={checklistTotal} />
       <TicketDescription issue={issue} />
-      <TicketComments issue={issue} />
+      <TicketComments issue={issue} data={data} />
       <div className="detail-actions">
         <a className="button-link primary" href={issue.url || "#"} target="_blank" rel="noreferrer">Open Jira</a>
         <a className="button-link" href={data?.dashboardUrl || "../"}>Current board actions</a>
@@ -2824,7 +2824,7 @@ function TicketDetailDialog({
           </div>
           <TicketDetailFields issue={issue} checklistTotal={checklistTotal} />
           <TicketDescription issue={issue} />
-          <TicketComments issue={issue} />
+          <TicketComments issue={issue} data={data} />
           <ChecklistWorkspace issue={issue} data={data} />
         </div>
       </section>
@@ -2912,14 +2912,14 @@ function DescriptionText({ description }: { description?: string }) {
   );
 }
 
-function TicketComments({ issue }: { issue: Issue }) {
+function TicketComments({ issue, data }: { issue: Issue; data: DashboardData | null }) {
   const comments = sortCommentsLatestFirst(Array.isArray(issue.comments) ? issue.comments : []);
   const commentCount = Number(issue.commentCount ?? comments.length);
   const hasComments = comments.length > 0;
   const latestComment = comments[0];
   const latestCommentUrl = issue.lastCommentUrl || latestComment?.url || "";
-  const jiraCommentUrl = jiraCommentFrameUrl(issue, latestComment);
-  const [commentFrameOpen, setCommentFrameOpen] = useState(false);
+  const jiraCommentUrl = jiraCommentEndpoint(data);
+  const [commentComposerOpen, setCommentComposerOpen] = useState(false);
   const latestCommentLabel = issue.lastCommentDisplay
     ? `Latest: ${issue.lastCommentDisplay}`
     : latestComment?.createdDisplay
@@ -2938,7 +2938,7 @@ function TicketComments({ issue }: { issue: Issue }) {
             className="comment-on-jira-button"
             type="button"
             disabled={!jiraCommentUrl}
-            onClick={() => setCommentFrameOpen(true)}
+            onClick={() => setCommentComposerOpen(true)}
           >
             Comment on Jira
           </button>
@@ -2977,14 +2977,29 @@ function TicketComments({ issue }: { issue: Issue }) {
           {latestCommentUrl ? <> <a href={latestCommentUrl} target="_blank" rel="noreferrer">Open the latest Jira comment.</a></> : null}
         </p>
       )}
-      {commentFrameOpen ? (
-        <JiraCommentFrameModal issue={issue} url={jiraCommentUrl} onClose={() => setCommentFrameOpen(false)} />
+      {commentComposerOpen ? (
+        <JiraCommentComposerModal issue={issue} data={data} endpoint={jiraCommentUrl} onClose={() => setCommentComposerOpen(false)} />
       ) : null}
     </section>
   );
 }
 
-function JiraCommentFrameModal({ issue, url, onClose }: { issue: Issue; url: string; onClose: () => void }) {
+function JiraCommentComposerModal({
+  issue,
+  data,
+  endpoint,
+  onClose
+}: {
+  issue: Issue;
+  data: DashboardData | null;
+  endpoint: string;
+  onClose: () => void;
+}) {
+  const [body, setBody] = useState("");
+  const [status, setStatus] = useState<"draft" | "submitting" | "submitted" | "failed">("draft");
+  const [message, setMessage] = useState("");
+  const [commentUrl, setCommentUrl] = useState("");
+
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -2997,7 +3012,52 @@ function JiraCommentFrameModal({ issue, url, onClose }: { issue: Issue; url: str
   }, [onClose]);
 
   const titleId = useId();
-  const issueLabel = issue.key || "ticket";
+  const canSubmit = Boolean(endpoint && issue.key && body.trim() && status !== "submitting");
+
+  async function submitComment() {
+    if (!canSubmit) {
+      return;
+    }
+
+    setStatus("submitting");
+    setMessage("Posting Jira comment through the Cloudflare bridge...");
+    setCommentUrl("");
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=UTF-8" },
+        credentials: "include",
+        body: JSON.stringify({
+          issueKey: issue.key,
+          issueUrl: issue.url,
+          summary: issue.summary,
+          body: body.trim(),
+          releaseVersion: data?.version || "",
+          repositorySlug: data?.repositorySlug || "",
+          dashboardUrl: typeof window === "undefined" ? data?.dashboardUrl || "" : window.location.href,
+          requestedAt: new Date().toISOString()
+        })
+      });
+      const payload = await response.json().catch(() => ({ ok: false, message: "The Jira comment bridge returned an unreadable response." }));
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.message || payload.error || "The Jira comment bridge rejected the request.");
+      }
+
+      setStatus("submitted");
+      setCommentUrl(payload.commentUrl || issue.url || "");
+      setMessage("Jira comment posted. The dashboard comment list will refresh on the next Jira data pull.");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Bridge could not post the Jira comment.";
+      setStatus("failed");
+      setMessage(
+        isHostedBridgeEndpoint(endpoint) && /failed to fetch|unreadable|load failed/i.test(errorMessage)
+          ? "Cloudflare login is required. Open the bridge login link, then retry."
+          : errorMessage
+      );
+    }
+  }
 
   return (
     <div className="ticket-detail-modal jira-comment-modal" role="presentation">
@@ -3013,22 +3073,41 @@ function JiraCommentFrameModal({ issue, url, onClose }: { issue: Issue; url: str
             <p className="ticket-detail-modal-summary">{issue.summary || "Untitled ticket"}</p>
           </div>
           <div className="jira-comment-modal-actions">
-            <a className="button-link primary" href={url || issue.url || "#"} target="_blank" rel="noreferrer">Open Jira</a>
+            <a className="button-link primary" href={issue.url || "#"} target="_blank" rel="noreferrer">Open Jira</a>
             <button className="ticket-detail-close" type="button" onClick={onClose} aria-label="Close Jira comment view">x</button>
           </div>
         </header>
-        <div className="jira-comment-frame-shell">
-          <iframe
-            className="jira-comment-frame"
-            src={url}
-            title={`Jira comment section for ${issueLabel}`}
-            loading="lazy"
-            sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
-          />
-          <div className="jira-comment-frame-fallback">
-            <span>Jira may require a signed-in session before comments render here.</span>
-            <a href={url || issue.url || "#"} target="_blank" rel="noreferrer">Open Jira comments</a>
+
+        <div className="jira-comment-composer-shell">
+          <label className="jira-comment-composer">
+            <span>Comment</span>
+            <textarea
+              value={body}
+              onChange={(event) => {
+                setBody(event.target.value);
+                if (status === "failed" || status === "submitted") {
+                  setStatus("draft");
+                  setMessage("");
+                  setCommentUrl("");
+                }
+              }}
+              placeholder="Write a Jira comment for this ticket..."
+              rows={12}
+              maxLength={32000}
+              autoFocus
+            />
+          </label>
+          <div className="jira-comment-composer-footer">
+            <span>{body.trim().length} characters</span>
+            <div className="jira-comment-submit-actions">
+              {endpoint ? <a href={bridgeStatusUrl(endpoint)} target="_blank" rel="noreferrer">Bridge login</a> : null}
+              {commentUrl ? <a href={commentUrl} target="_blank" rel="noreferrer">Open posted comment</a> : null}
+              <button type="button" onClick={submitComment} disabled={!canSubmit}>
+                {status === "submitting" ? "Posting" : "Submit comment to Jira"}
+              </button>
+            </div>
           </div>
+          {message ? <p className={`jira-comment-submit-message ${status}`}>{message}</p> : null}
         </div>
       </section>
     </div>
@@ -3889,7 +3968,7 @@ function workflowUrl(repositorySlug: string, workflowName: string) {
 }
 
 function bridgeStatusUrl(endpoint: string) {
-  return endpoint.replace(/\/assign$/, "/status").replace(/\/comment-checklist$/, "/status");
+  return endpoint.replace(/\/assign$/, "/status").replace(/\/comment-checklist$/, "/status").replace(/\/comment$/, "/status");
 }
 
 function isLocalBridgeEndpoint(endpoint: string) {
@@ -4009,36 +4088,6 @@ function ticketCopyText(issue: Issue) {
   const summary = (issue.summary || "Untitled ticket").trim();
   const url = issue.url || "";
   return url ? `${key} - ${summary}\n${url}` : `${key} - ${summary}`;
-}
-
-function jiraCommentFrameUrl(issue: Issue, latestComment?: JiraComment) {
-  const baseUrl = issue.url || (issue.key ? `https://golfnow.atlassian.net/browse/${encodeURIComponent(issue.key)}` : "");
-  if (!baseUrl) {
-    return "";
-  }
-
-  const commentId = latestComment?.id || "";
-  if (!commentId) {
-    return appendHash(baseUrl, "activity");
-  }
-
-  try {
-    const parsed = new URL(baseUrl);
-    parsed.searchParams.set("focusedCommentId", commentId);
-    parsed.searchParams.set("page", "com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel");
-    parsed.hash = `comment-${encodeURIComponent(commentId)}`;
-    return parsed.toString();
-  } catch {
-    const joiner = baseUrl.includes("?") ? "&" : "?";
-    return `${baseUrl}${joiner}focusedCommentId=${encodeURIComponent(commentId)}&page=com.atlassian.jira.plugin.system.issuetabpanels%3Acomment-tabpanel#comment-${encodeURIComponent(commentId)}`;
-  }
-}
-
-function appendHash(url: string, hash: string) {
-  if (url.includes("#")) {
-    return url;
-  }
-  return `${url}#${hash}`;
 }
 
 function sortCommentsLatestFirst(comments: JiraComment[]) {
@@ -4332,6 +4381,18 @@ function checklistEndpoint(data: DashboardData | null) {
 
   if (data?.assigneeDispatchEndpoint) {
     return data.assigneeDispatchEndpoint.replace(/\/assign$/, "/comment-checklist");
+  }
+
+  return "";
+}
+
+function jiraCommentEndpoint(data: DashboardData | null) {
+  if (data?.assigneeDispatchEndpoint) {
+    return data.assigneeDispatchEndpoint.replace(/\/assign$/, "/comment");
+  }
+
+  if (data?.testChecklistCommentEndpoint) {
+    return data.testChecklistCommentEndpoint.replace(/\/comment-checklist$/, "/comment");
   }
 
   return "";
