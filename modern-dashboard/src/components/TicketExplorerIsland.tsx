@@ -14,6 +14,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState
 } from "react";
 
@@ -1691,9 +1692,10 @@ function GroupedTicketCard({
   return (
     <article className={selectedKey === issue.key ? "grouped-ticket-card selected" : "grouped-ticket-card"}>
       <div className="grouped-ticket-topline">
-        <a className="table-ticket-key" href={issue.url || "#"} target="_blank" rel="noreferrer">
-          {issue.key || "Ticket"}
-        </a>
+        <div className="grouped-ticket-keyline">
+          <TicketKeyCluster issue={issue} />
+          <IssueTypePill issue={issue} />
+        </div>
         <span className="priority-pill">{issue.priority || "None"}</span>
       </div>
 
@@ -1764,9 +1766,10 @@ function GroupedTicketCard({
               key={subtask.key || `${parentId}-${subtask.summary}`}
             >
               <div className="subtask-main">
-                <a className="table-ticket-key" href={subtask.url || "#"} target="_blank" rel="noreferrer">
-                  {subtask.key || "Subtask"}
-                </a>
+                <div className="grouped-ticket-keyline subtask-keyline">
+                  <TicketKeyCluster issue={subtask} />
+                  <IssueTypePill issue={subtask} />
+                </div>
                 <button
                   className="summary-button subtask-summary"
                   type="button"
@@ -2243,6 +2246,45 @@ function IssueTypePill({ issue }: { issue: Issue }) {
   );
 }
 
+function TicketKeyCluster({ issue }: { issue: Issue }) {
+  return (
+    <span className="ticket-key-cluster">
+      <a className="table-ticket-key" href={issue.url || "#"} target="_blank" rel="noreferrer">
+        {issue.key || "Ticket"}
+      </a>
+      <CopyTicketButton issue={issue} />
+    </span>
+  );
+}
+
+function CopyTicketButton({ issue }: { issue: Issue }) {
+  const [copied, setCopied] = useState(false);
+  const label = issue.key || "Ticket";
+
+  function copyTicket() {
+    copyTextToClipboard(ticketCopyText(issue)).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    });
+  }
+
+  return (
+    <button
+      type="button"
+      className={copied ? "ticket-copy-button copied" : "ticket-copy-button"}
+      onClick={copyTicket}
+      aria-label={`Copy ${label} link and name`}
+      title={copied ? "Copied" : "Copy ticket link and name"}
+    >
+      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+        <rect x="7" y="5" width="9" height="11" rx="2"></rect>
+        <path d="M5 13H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path>
+      </svg>
+      <span>{copied ? "Copied" : "Copy"}</span>
+    </button>
+  );
+}
+
 function AssigneeBadge({ issue }: { issue: Issue }) {
   const label = issue.assignee || "Unassigned";
   return (
@@ -2296,11 +2338,27 @@ function SelectFilter({
   showAvatars?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [dropUp, setDropUp] = useState(false);
   const listboxId = useId();
+  const controlRef = useRef<HTMLDivElement | null>(null);
   const normalizedOptions = allLabel === undefined || !includeAll ? options : [{ value: "", label: allLabel }, ...options];
   const selected = normalizedOptions.find((option) => option.value === value) || options.find((option) => option.value === value);
   const display = selected || { value: "", label: allLabel || `All ${label.toLowerCase()}` };
   const hasInlineAll = includeAll && allLabel === undefined;
+
+  function setMenuDirection() {
+    const rect = controlRef.current?.getBoundingClientRect();
+    if (!rect || typeof window === "undefined") {
+      setDropUp(false);
+      return;
+    }
+
+    const optionCount = normalizedOptions.length + (hasInlineAll ? 1 : 0);
+    const menuHeight = Math.min(280, Math.max(136, optionCount * 42 + 16));
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    setDropUp(spaceBelow < menuHeight + 16 && spaceAbove > spaceBelow);
+  }
 
   function choose(optionValue: string) {
     onChange(optionValue);
@@ -2309,7 +2367,8 @@ function SelectFilter({
 
   return (
     <div
-      className="select-control"
+      ref={controlRef}
+      className={dropUp ? "select-control drop-up" : "select-control"}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
           setOpen(false);
@@ -2324,7 +2383,12 @@ function SelectFilter({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listboxId}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          if (!open) {
+            setMenuDirection();
+          }
+          setOpen((current) => !current);
+        }}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             setOpen(false);
@@ -2625,7 +2689,7 @@ function TicketDetail({
     <aside className="ticket-detail-panel" aria-label="Selected ticket details">
       <p className="eyebrow">Selected ticket</p>
       <div className="detail-heading">
-        <a href={issue.url || "#"} target="_blank" rel="noreferrer">{issue.key || "Ticket"}</a>
+        <TicketKeyCluster issue={issue} />
         <span className="priority-pill">{issue.priority || "None"}</span>
       </div>
       <h2>{issue.summary || "Untitled ticket"}</h2>
@@ -2700,7 +2764,7 @@ function TicketDetailDialog({
         <header className="ticket-detail-modal-header">
           <div>
             <div className="ticket-detail-modal-title">
-              <a href={issue.url || "#"} target="_blank" rel="noreferrer">{issue.key || "Ticket"}</a>
+              <TicketKeyCluster issue={issue} />
               <h2 id="ticket-detail-dialog-title">Ticket details</h2>
             </div>
             <p className="ticket-detail-modal-summary">{issue.summary || "Untitled ticket"}</p>
@@ -2818,10 +2882,10 @@ function DescriptionText({ description }: { description?: string }) {
 }
 
 function TicketComments({ issue }: { issue: Issue }) {
-  const comments = Array.isArray(issue.comments) ? issue.comments : [];
+  const comments = sortCommentsLatestFirst(Array.isArray(issue.comments) ? issue.comments : []);
   const commentCount = Number(issue.commentCount ?? comments.length);
   const hasComments = comments.length > 0;
-  const latestComment = comments[comments.length - 1];
+  const latestComment = comments[0];
   const latestCommentUrl = issue.lastCommentUrl || latestComment?.url || "";
   const latestCommentLabel = issue.lastCommentDisplay
     ? `Latest: ${issue.lastCommentDisplay}`
@@ -3843,6 +3907,30 @@ async function copyTextToClipboard(value: string) {
   textarea.select();
   document.execCommand("copy");
   document.body.removeChild(textarea);
+}
+
+function ticketCopyText(issue: Issue) {
+  const key = issue.key || "Ticket";
+  const summary = (issue.summary || "Untitled ticket").trim();
+  const url = issue.url || "";
+  return url ? `${key} - ${summary}\n${url}` : `${key} - ${summary}`;
+}
+
+function sortCommentsLatestFirst(comments: JiraComment[]) {
+  return comments
+    .map((comment, index) => ({ comment, index, timestamp: commentTimestamp(comment) }))
+    .sort((first, second) => {
+      if (second.timestamp !== first.timestamp) {
+        return second.timestamp - first.timestamp;
+      }
+      return second.index - first.index;
+    })
+    .map((entry) => entry.comment);
+}
+
+function commentTimestamp(comment: JiraComment) {
+  const parsed = Date.parse(comment.updatedDisplay || comment.createdDisplay || "");
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function buildReleaseAnalytics(_data: DashboardData | null, issues: Issue[], changeSets: ChangeSets): ReleaseAnalytics {

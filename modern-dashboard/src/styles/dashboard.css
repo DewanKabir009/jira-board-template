@@ -1725,6 +1725,11 @@ h3 {
   padding: 6px;
 }
 
+.select-control.drop-up .custom-select-menu {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
 .custom-select-option {
   display: grid;
   width: 100%;
@@ -2359,6 +2364,64 @@ h3 {
   justify-content: space-between;
 }
 
+.grouped-ticket-keyline,
+.ticket-key-cluster {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.grouped-ticket-keyline {
+  flex-wrap: wrap;
+}
+
+.subtask-keyline {
+  gap: 8px;
+}
+
+.ticket-copy-button {
+  display: inline-grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border: 1px solid rgba(0, 95, 204, 0.24);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--blue);
+  cursor: pointer;
+  box-shadow: 0 7px 14px rgba(0, 84, 122, 0.08);
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+
+.ticket-copy-button:hover,
+.ticket-copy-button:focus-visible,
+.ticket-copy-button.copied {
+  border-color: var(--green);
+  background: var(--green-soft);
+  color: var(--green);
+  transform: translateY(-1px);
+}
+
+.ticket-copy-button svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.ticket-copy-button span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .grouped-ticket-actions {
   display: grid;
   grid-template-columns: 1fr;
@@ -2543,7 +2606,7 @@ h3 {
   line-height: 1.35;
 }
 
-.ticket-cell .issue-type-pill {
+.issue-type-pill {
   display: inline-flex;
   width: fit-content;
   min-height: 22px;
@@ -2559,11 +2622,11 @@ h3 {
   box-shadow: 0 7px 14px rgba(0, 84, 122, 0.12);
 }
 
-.ticket-cell .issue-type-pill.main {
+.issue-type-pill.main {
   background: linear-gradient(135deg, var(--golfnow-orange), #d85c00);
 }
 
-.ticket-cell .issue-type-pill.subtask {
+.issue-type-pill.subtask {
   background: linear-gradient(135deg, var(--golfnow-green), #006f3d);
 }
 
