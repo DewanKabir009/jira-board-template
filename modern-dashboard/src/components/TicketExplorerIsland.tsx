@@ -200,6 +200,13 @@ type TicketSection = {
   status: string;
   groups: TicketGroup[];
 };
+type StatusSectionTheme = {
+  bg: string;
+  border: string;
+  accent: string;
+  text: string;
+  chip: string;
+};
 
 type TicketColumn = {
   id: number;
@@ -408,6 +415,19 @@ const STATUS_ORDER = [
   "Pending Deployment (DEV)",
   "Closed"
 ];
+const STATUS_SECTION_THEME_KEYS = ["neutral", "analysis", "dev", "regression", "qa", "staging", "prod", "blocked", "review", "other"] as const;
+const STATUS_SECTION_THEMES: Record<typeof STATUS_SECTION_THEME_KEYS[number], StatusSectionTheme> = {
+  neutral: { bg: "var(--status-neutral-bg)", border: "var(--status-neutral-border)", accent: "var(--status-neutral-accent)", text: "var(--status-neutral-text)", chip: "var(--status-neutral-chip)" },
+  analysis: { bg: "var(--status-analysis-bg)", border: "var(--status-analysis-border)", accent: "var(--status-analysis-accent)", text: "var(--status-analysis-text)", chip: "var(--status-analysis-chip)" },
+  dev: { bg: "var(--status-dev-bg)", border: "var(--status-dev-border)", accent: "var(--status-dev-accent)", text: "var(--status-dev-text)", chip: "var(--status-dev-chip)" },
+  regression: { bg: "var(--status-regression-bg)", border: "var(--status-regression-border)", accent: "var(--status-regression-accent)", text: "var(--status-regression-text)", chip: "var(--status-regression-chip)" },
+  qa: { bg: "var(--status-qa-bg)", border: "var(--status-qa-border)", accent: "var(--status-qa-accent)", text: "var(--status-qa-text)", chip: "var(--status-qa-chip)" },
+  staging: { bg: "var(--status-staging-bg)", border: "var(--status-staging-border)", accent: "var(--status-staging-accent)", text: "var(--status-staging-text)", chip: "var(--status-staging-chip)" },
+  prod: { bg: "var(--status-prod-bg)", border: "var(--status-prod-border)", accent: "var(--status-prod-accent)", text: "var(--status-prod-text)", chip: "var(--status-prod-chip)" },
+  blocked: { bg: "var(--status-blocked-bg)", border: "var(--status-blocked-border)", accent: "var(--status-blocked-accent)", text: "var(--status-blocked-text)", chip: "var(--status-blocked-chip)" },
+  review: { bg: "var(--status-review-bg)", border: "var(--status-review-border)", accent: "var(--status-review-accent)", text: "var(--status-review-text)", chip: "var(--status-review-chip)" },
+  other: { bg: "var(--status-other-bg)", border: "var(--status-other-border)", accent: "var(--status-other-accent)", text: "var(--status-other-text)", chip: "var(--status-other-chip)" }
+};
 
 const EMPTY_FILTERS: Filters = {
   search: "",
@@ -1830,7 +1850,12 @@ function TicketCardView({
             const collapsed = collapsedStatuses.has(section.status);
             const issueCount = section.groups.reduce((total, group) => total + 1 + group.visibleSubtasks.length, 0);
             return (
-              <section className={collapsed ? "ticket-status-section collapsed" : "ticket-status-section"} key={section.status}>
+              <section
+                className={collapsed ? "ticket-status-section collapsed" : "ticket-status-section"}
+                data-status={section.status}
+                key={section.status}
+                style={statusSectionStyle(section.status)}
+              >
                 <button
                   type="button"
                   className="status-section-toggle"
@@ -1867,6 +1892,60 @@ function TicketCardView({
       ))}
     </div>
   );
+}
+
+function statusSectionStyle(status: string): CSSProperties {
+  const theme = statusSectionTheme(status);
+  return {
+    "--section-bg": theme.bg,
+    "--section-border": theme.border,
+    "--section-accent": theme.accent,
+    "--section-text": theme.text,
+    "--section-chip-bg": theme.chip
+  } as CSSProperties;
+}
+
+function statusSectionTheme(status: string) {
+  const normalized = String(status || "").trim().toLowerCase();
+
+  if (normalized.includes("blocked")) {
+    return STATUS_SECTION_THEMES.blocked;
+  }
+  if (normalized.includes("analysis")) {
+    return STATUS_SECTION_THEMES.analysis;
+  }
+  if (normalized.includes("pre planning")) {
+    return STATUS_SECTION_THEMES.neutral;
+  }
+  if (normalized.includes("code review") || normalized.includes("po review")) {
+    return STATUS_SECTION_THEMES.review;
+  }
+  if (normalized.includes("pending deployment") && normalized.includes("dev")) {
+    return STATUS_SECTION_THEMES.dev;
+  }
+  if (normalized.includes("pending deployment") && normalized.includes("stg")) {
+    return STATUS_SECTION_THEMES.staging;
+  }
+  if (normalized.includes("pending deployment") && normalized.includes("prod")) {
+    return STATUS_SECTION_THEMES.prod;
+  }
+  if (normalized.includes("qa testing")) {
+    return STATUS_SECTION_THEMES.qa;
+  }
+  if (normalized.includes("regression")) {
+    return STATUS_SECTION_THEMES.regression;
+  }
+  if (normalized.includes("closed") || normalized.includes("done")) {
+    return STATUS_SECTION_THEMES.prod;
+  }
+
+  let hash = 0;
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash = ((hash << 5) - hash) + normalized.charCodeAt(index);
+    hash |= 0;
+  }
+  const themeKey = STATUS_SECTION_THEME_KEYS[Math.abs(hash) % STATUS_SECTION_THEME_KEYS.length];
+  return STATUS_SECTION_THEMES[themeKey];
 }
 
 function selectTableRow(event: ReactMouseEvent<HTMLElement>, key: string, onSelectTicket: (key: string) => void) {

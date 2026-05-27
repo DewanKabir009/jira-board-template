@@ -24,6 +24,56 @@
   --lime: #d7ff2f;
   --focus-ring: rgba(0, 143, 90, 0.38);
   --shadow: 0 18px 48px rgba(0, 84, 122, 0.15);
+  --status-neutral-bg: #f8fafc;
+  --status-neutral-border: #cbd5e1;
+  --status-neutral-accent: #64748b;
+  --status-neutral-text: #0f172a;
+  --status-neutral-chip: #ffffff;
+  --status-analysis-bg: #eff6ff;
+  --status-analysis-border: #bfdbfe;
+  --status-analysis-accent: #2563eb;
+  --status-analysis-text: #1e3a8a;
+  --status-analysis-chip: #dbeafe;
+  --status-dev-bg: #f0f9ff;
+  --status-dev-border: #bae6fd;
+  --status-dev-accent: #0284c7;
+  --status-dev-text: #075985;
+  --status-dev-chip: #e0f2fe;
+  --status-regression-bg: #ecfeff;
+  --status-regression-border: #a5f3fc;
+  --status-regression-accent: #0891b2;
+  --status-regression-text: #155e75;
+  --status-regression-chip: #cffafe;
+  --status-qa-bg: #f0fdf4;
+  --status-qa-border: #bbf7d0;
+  --status-qa-accent: #16a34a;
+  --status-qa-text: #166534;
+  --status-qa-chip: #dcfce7;
+  --status-staging-bg: #fefce8;
+  --status-staging-border: #fde68a;
+  --status-staging-accent: #ca8a04;
+  --status-staging-text: #854d0e;
+  --status-staging-chip: #fef3c7;
+  --status-prod-bg: #fff7ed;
+  --status-prod-border: #fed7aa;
+  --status-prod-accent: #ea580c;
+  --status-prod-text: #9a3412;
+  --status-prod-chip: #ffedd5;
+  --status-blocked-bg: #fff1f2;
+  --status-blocked-border: #fecdd3;
+  --status-blocked-accent: #e11d48;
+  --status-blocked-text: #9f1239;
+  --status-blocked-chip: #ffe4e6;
+  --status-review-bg: #f5f3ff;
+  --status-review-border: #ddd6fe;
+  --status-review-accent: #7c3aed;
+  --status-review-text: #5b21b6;
+  --status-review-chip: #ede9fe;
+  --status-other-bg: #fdf2f8;
+  --status-other-border: #fbcfe8;
+  --status-other-accent: #db2777;
+  --status-other-text: #9d174d;
+  --status-other-chip: #fce7f3;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   letter-spacing: 0;
 }
@@ -2450,10 +2500,22 @@ h3 {
 }
 
 .ticket-status-section {
-  border: 1px solid var(--line);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--section-border, var(--line));
   border-radius: 8px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(241, 251, 255, 0.76));
-  padding: 10px;
+  background: linear-gradient(180deg, var(--section-bg, rgba(255, 255, 255, 0.96)), rgba(255, 255, 255, 0.9));
+  box-shadow: 0 14px 28px rgba(0, 84, 122, 0.07);
+  padding: 10px 10px 10px 14px;
+}
+
+.ticket-status-section::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: var(--section-accent, var(--blue));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--section-accent, var(--blue)) 42%, transparent);
 }
 
 .ticket-status-section.collapsed {
@@ -2466,10 +2528,10 @@ h3 {
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 10px;
   align-items: center;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--section-border, var(--line-strong));
   border-radius: 8px;
-  background: linear-gradient(135deg, var(--blue-soft), rgba(255, 255, 255, 0.96) 62%, rgba(216, 255, 232, 0.72));
-  color: var(--text);
+  background: linear-gradient(135deg, var(--section-chip-bg, #ffffff), rgba(255, 255, 255, 0.96) 58%, var(--section-bg, rgba(216, 255, 232, 0.72)));
+  color: var(--section-text, var(--text));
   cursor: pointer;
   font: inherit;
   font-size: 0.88rem;
@@ -2485,15 +2547,25 @@ h3 {
 
 .status-section-toggle strong {
   min-width: 28px;
+  border: 1px solid var(--section-border, transparent);
   border-radius: 999px;
-  background: #ffffff;
-  color: var(--blue);
+  background: var(--section-chip-bg, #ffffff);
+  color: var(--section-accent, var(--blue));
   padding: 3px 7px;
   text-align: center;
 }
 
+.status-section-toggle span:last-child {
+  color: var(--section-accent, var(--blue));
+}
+
 .status-section-cards {
   align-items: start;
+}
+
+.ticket-status-section .grouped-ticket-card {
+  border-color: var(--section-border, var(--line));
+  background: linear-gradient(180deg, #ffffff 0%, var(--section-bg, rgba(241, 251, 255, 0.94)) 190%);
 }
 
 .grouped-ticket-card {
