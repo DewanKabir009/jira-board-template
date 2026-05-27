@@ -2216,6 +2216,7 @@ function AssigneeAssignmentControl({
           onChange={setSelectedAssignee}
           allLabel="Choose assignee"
           showAvatars
+          preferredDirection={compact ? "up" : "auto"}
         />
         <button
           type="button"
@@ -2327,7 +2328,8 @@ function SelectFilter({
   onChange,
   allLabel,
   includeAll = true,
-  showAvatars = false
+  showAvatars = false,
+  preferredDirection = "auto"
 }: {
   label: string;
   value: string;
@@ -2336,9 +2338,10 @@ function SelectFilter({
   allLabel?: string;
   includeAll?: boolean;
   showAvatars?: boolean;
+  preferredDirection?: "auto" | "up" | "down";
 }) {
   const [open, setOpen] = useState(false);
-  const [dropUp, setDropUp] = useState(false);
+  const [dropUp, setDropUp] = useState(preferredDirection === "up");
   const listboxId = useId();
   const controlRef = useRef<HTMLDivElement | null>(null);
   const normalizedOptions = allLabel === undefined || !includeAll ? options : [{ value: "", label: allLabel }, ...options];
@@ -2347,6 +2350,15 @@ function SelectFilter({
   const hasInlineAll = includeAll && allLabel === undefined;
 
   function setMenuDirection() {
+    if (preferredDirection === "up") {
+      setDropUp(true);
+      return;
+    }
+    if (preferredDirection === "down") {
+      setDropUp(false);
+      return;
+    }
+
     const rect = controlRef.current?.getBoundingClientRect();
     if (!rect || typeof window === "undefined") {
       setDropUp(false);
@@ -2359,6 +2371,25 @@ function SelectFilter({
     const spaceAbove = rect.top;
     setDropUp(spaceBelow < menuHeight + 16 && spaceAbove > spaceBelow);
   }
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    setMenuDirection();
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const handlePositionChange = () => setMenuDirection();
+    window.addEventListener("resize", handlePositionChange);
+    window.addEventListener("scroll", handlePositionChange, true);
+    return () => {
+      window.removeEventListener("resize", handlePositionChange);
+      window.removeEventListener("scroll", handlePositionChange, true);
+    };
+  }, [open, preferredDirection, normalizedOptions.length, hasInlineAll]);
 
   function choose(optionValue: string) {
     onChange(optionValue);
@@ -2887,6 +2918,8 @@ function TicketComments({ issue }: { issue: Issue }) {
   const hasComments = comments.length > 0;
   const latestComment = comments[0];
   const latestCommentUrl = issue.lastCommentUrl || latestComment?.url || "";
+  const jiraCommentUrl = jiraCommentFrameUrl(issue, latestComment);
+  const [commentFrameOpen, setCommentFrameOpen] = useState(false);
   const latestCommentLabel = issue.lastCommentDisplay
     ? `Latest: ${issue.lastCommentDisplay}`
     : latestComment?.createdDisplay
@@ -2901,6 +2934,14 @@ function TicketComments({ issue }: { issue: Issue }) {
           <span>
             {commentCount ? `${comments.length}${commentCount > comments.length ? ` of ${commentCount}` : ""} comment${commentCount === 1 ? "" : "s"}` : "No comments"}
           </span>
+          <button
+            className="comment-on-jira-button"
+            type="button"
+            disabled={!jiraCommentUrl}
+            onClick={() => setCommentFrameOpen(true)}
+          >
+            Comment on Jira
+          </button>
           {latestCommentUrl ? <a href={latestCommentUrl} target="_blank" rel="noreferrer">{latestCommentLabel}</a> : null}
         </div>
       </div>
@@ -2936,7 +2977,61 @@ function TicketComments({ issue }: { issue: Issue }) {
           {latestCommentUrl ? <> <a href={latestCommentUrl} target="_blank" rel="noreferrer">Open the latest Jira comment.</a></> : null}
         </p>
       )}
+      {commentFrameOpen ? (
+        <JiraCommentFrameModal issue={issue} url={jiraCommentUrl} onClose={() => setCommentFrameOpen(false)} />
+      ) : null}
     </section>
+  );
+}
+
+function JiraCommentFrameModal({ issue, url, onClose }: { issue: Issue; url: string; onClose: () => void }) {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  const titleId = useId();
+  const issueLabel = issue.key || "ticket";
+
+  return (
+    <div className="ticket-detail-modal jira-comment-modal" role="presentation">
+      <button className="ticket-detail-backdrop" type="button" aria-label="Close Jira comment view" onClick={onClose}></button>
+      <section className="jira-comment-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+        <header className="jira-comment-modal-header">
+          <div>
+            <p className="eyebrow">Jira comments</p>
+            <div className="ticket-detail-modal-title">
+              <TicketKeyCluster issue={issue} />
+              <h2 id={titleId}>Comment on Jira</h2>
+            </div>
+            <p className="ticket-detail-modal-summary">{issue.summary || "Untitled ticket"}</p>
+          </div>
+          <div className="jira-comment-modal-actions">
+            <a className="button-link primary" href={url || issue.url || "#"} target="_blank" rel="noreferrer">Open Jira</a>
+            <button className="ticket-detail-close" type="button" onClick={onClose} aria-label="Close Jira comment view">x</button>
+          </div>
+        </header>
+        <div className="jira-comment-frame-shell">
+          <iframe
+            className="jira-comment-frame"
+            src={url}
+            title={`Jira comment section for ${issueLabel}`}
+            loading="lazy"
+            sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+          />
+          <div className="jira-comment-frame-fallback">
+            <span>Jira may require a signed-in session before comments render here.</span>
+            <a href={url || issue.url || "#"} target="_blank" rel="noreferrer">Open Jira comments</a>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -3914,6 +4009,36 @@ function ticketCopyText(issue: Issue) {
   const summary = (issue.summary || "Untitled ticket").trim();
   const url = issue.url || "";
   return url ? `${key} - ${summary}\n${url}` : `${key} - ${summary}`;
+}
+
+function jiraCommentFrameUrl(issue: Issue, latestComment?: JiraComment) {
+  const baseUrl = issue.url || (issue.key ? `https://golfnow.atlassian.net/browse/${encodeURIComponent(issue.key)}` : "");
+  if (!baseUrl) {
+    return "";
+  }
+
+  const commentId = latestComment?.id || "";
+  if (!commentId) {
+    return appendHash(baseUrl, "activity");
+  }
+
+  try {
+    const parsed = new URL(baseUrl);
+    parsed.searchParams.set("focusedCommentId", commentId);
+    parsed.searchParams.set("page", "com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel");
+    parsed.hash = `comment-${encodeURIComponent(commentId)}`;
+    return parsed.toString();
+  } catch {
+    const joiner = baseUrl.includes("?") ? "&" : "?";
+    return `${baseUrl}${joiner}focusedCommentId=${encodeURIComponent(commentId)}&page=com.atlassian.jira.plugin.system.issuetabpanels%3Acomment-tabpanel#comment-${encodeURIComponent(commentId)}`;
+  }
+}
+
+function appendHash(url: string, hash: string) {
+  if (url.includes("#")) {
+    return url;
+  }
+  return `${url}#${hash}`;
 }
 
 function sortCommentsLatestFirst(comments: JiraComment[]) {
