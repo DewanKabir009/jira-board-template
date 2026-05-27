@@ -1622,6 +1622,75 @@ h3 {
   box-shadow: 0 8px 18px rgba(0, 95, 204, 0.16);
 }
 
+.golfnow-central-embed {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid rgba(0, 143, 90, 0.26);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(224, 255, 237, 0.72));
+  box-shadow: 0 12px 30px rgba(0, 84, 122, 0.12);
+}
+
+.golfnow-central-embed summary {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 14px;
+}
+
+.golfnow-central-embed summary::-webkit-details-marker {
+  display: none;
+}
+
+.golfnow-central-embed summary > span,
+.golfnow-central-embed summary a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.golfnow-central-embed summary > span {
+  color: var(--text);
+}
+
+.golfnow-central-embed summary a {
+  border: 1px solid rgba(0, 95, 204, 0.25);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--blue);
+  min-height: 30px;
+  padding: 0 10px;
+  text-decoration: none;
+}
+
+.embed-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ff7900, #00a651);
+  box-shadow: 0 0 0 4px rgba(0, 143, 90, 0.12);
+}
+
+.golfnow-central-frame-shell {
+  min-height: min(72vh, 760px);
+  border-top: 1px solid rgba(0, 143, 90, 0.2);
+  background: #ffffff;
+}
+
+.golfnow-central-frame-shell iframe {
+  display: block;
+  width: 100%;
+  height: min(72vh, 760px);
+  border: 0;
+  background: #ffffff;
+}
+
 .explorer-filters {
   display: grid;
   grid-template-columns: minmax(220px, 1.6fr) repeat(6, minmax(0, 1fr));
@@ -3282,6 +3351,37 @@ h3 {
   text-transform: uppercase;
 }
 
+.jira-comment-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border: 1px solid rgba(0, 144, 213, 0.24);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  padding: 8px;
+}
+
+.jira-comment-editor-toolbar button {
+  min-height: 32px;
+  border: 1px solid rgba(0, 95, 204, 0.24);
+  border-radius: 7px;
+  background: linear-gradient(180deg, #ffffff, rgba(239, 248, 255, 0.92));
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 0 10px;
+}
+
+.jira-comment-editor-toolbar button:hover,
+.jira-comment-editor-toolbar button:focus-visible {
+  border-color: var(--blue);
+  background: linear-gradient(135deg, rgba(0, 95, 204, 0.12), rgba(0, 166, 81, 0.12));
+  color: var(--blue);
+  outline: none;
+}
+
 .jira-comment-composer textarea {
   width: 100%;
   min-height: 280px;
@@ -3878,6 +3978,17 @@ h3 {
 
   .jira-comment-composer textarea {
     min-height: 220px;
+  }
+
+  .golfnow-central-embed summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .golfnow-central-frame-shell,
+  .golfnow-central-frame-shell iframe {
+    height: 68vh;
+    min-height: 420px;
   }
 
   .ticket-detail-modal-body {

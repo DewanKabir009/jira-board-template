@@ -207,6 +207,46 @@ type TicketColumn = {
   sections: TicketSection[];
 };
 
+type JiraAdfMark = {
+  type: string;
+  attrs?: Record<string, string>;
+};
+
+type JiraAdfNode = {
+  type: string;
+  attrs?: Record<string, string | number | boolean>;
+  content?: JiraAdfNode[];
+  text?: string;
+  marks?: JiraAdfMark[];
+};
+
+type JiraAdfDocument = JiraAdfNode & {
+  type: "doc";
+  version: 1;
+  content: JiraAdfNode[];
+};
+
+type CommentEditorTool =
+  | "heading2"
+  | "heading3"
+  | "bold"
+  | "italic"
+  | "underline"
+  | "strike"
+  | "inlineCode"
+  | "link"
+  | "bulletList"
+  | "orderedList"
+  | "quote"
+  | "codeBlock"
+  | "rule";
+
+type CommentEditorToolConfig = {
+  id: CommentEditorTool;
+  label: string;
+  title: string;
+};
+
 type WorkspaceStatus = "draft" | "ready" | "submitting" | "submitted" | "failed";
 type AssignmentStatus = "idle" | "submitting" | "submitted" | "failed";
 
@@ -302,6 +342,22 @@ const DEFAULT_ASSIGNABLE_ASSIGNEES = [
   "Nicole Greer",
   "Alex McNay",
   "Anton Yurkevich"
+];
+const GOLFNOW_CENTRAL_DEV_URL = "https://golfnowcentral.dev.golfnow.io/";
+const COMMENT_EDITOR_TOOLS: CommentEditorToolConfig[] = [
+  { id: "heading2", label: "H2", title: "Heading" },
+  { id: "heading3", label: "H3", title: "Subheading" },
+  { id: "bold", label: "B", title: "Bold" },
+  { id: "italic", label: "I", title: "Italic" },
+  { id: "underline", label: "U", title: "Underline" },
+  { id: "strike", label: "S", title: "Strikethrough" },
+  { id: "inlineCode", label: "</>", title: "Inline code" },
+  { id: "link", label: "Link", title: "Link" },
+  { id: "bulletList", label: "Bullets", title: "Bulleted list" },
+  { id: "orderedList", label: "1.", title: "Numbered list" },
+  { id: "quote", label: "Quote", title: "Quote" },
+  { id: "codeBlock", label: "Code", title: "Code block" },
+  { id: "rule", label: "Line", title: "Divider" }
 ];
 const STATUS_ORDER = [
   "Blocked",
@@ -868,6 +924,8 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
           </div>
         </div>
 
+        <GolfNowCentralEmbed />
+
         <JiraTicketSearch
           projectOptions={jiraProjectOptions}
           project={ticketSearchProject}
@@ -1027,6 +1085,31 @@ function ViewToggle({ value, onChange }: { value: ExplorerView; onChange: (value
         </button>
       </div>
     </div>
+  );
+}
+
+function GolfNowCentralEmbed() {
+  return (
+    <details className="golfnow-central-embed">
+      <summary>
+        <span>
+          <span className="embed-status-dot" aria-hidden="true" />
+          GolfNow Central DEV
+        </span>
+        <a href={GOLFNOW_CENTRAL_DEV_URL} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
+          Open full page
+        </a>
+      </summary>
+      <div className="golfnow-central-frame-shell">
+        <iframe
+          title="GolfNow Central DEV"
+          src={GOLFNOW_CENTRAL_DEV_URL}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+        />
+      </div>
+    </details>
   );
 }
 
@@ -2999,6 +3082,7 @@ function JiraCommentComposerModal({
   const [status, setStatus] = useState<"draft" | "submitting" | "submitted" | "failed">("draft");
   const [message, setMessage] = useState("");
   const [commentUrl, setCommentUrl] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -3013,6 +3097,21 @@ function JiraCommentComposerModal({
 
   const titleId = useId();
   const canSubmit = Boolean(endpoint && issue.key && body.trim() && status !== "submitting");
+
+  function applyEditorTool(tool: CommentEditorTool) {
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? body.length;
+    const end = textarea?.selectionEnd ?? body.length;
+    const formatted = formatCommentSelection(body, start, end, tool);
+    setBody(formatted.value);
+    setStatus("draft");
+    setMessage("");
+    setCommentUrl("");
+    window.setTimeout(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(formatted.selectionStart, formatted.selectionEnd);
+    }, 0);
+  }
 
   async function submitComment() {
     if (!canSubmit) {
@@ -3033,6 +3132,8 @@ function JiraCommentComposerModal({
           issueUrl: issue.url,
           summary: issue.summary,
           body: body.trim(),
+          bodyFormat: "adf",
+          adf: buildJiraCommentAdf(body),
           releaseVersion: data?.version || "",
           repositorySlug: data?.repositorySlug || "",
           dashboardUrl: typeof window === "undefined" ? data?.dashboardUrl || "" : window.location.href,
@@ -3081,7 +3182,22 @@ function JiraCommentComposerModal({
         <div className="jira-comment-composer-shell">
           <label className="jira-comment-composer">
             <span>Comment</span>
+            <div className="jira-comment-editor-toolbar" aria-label="Jira comment editor tools">
+              {COMMENT_EDITOR_TOOLS.map((tool) => (
+                <button
+                  type="button"
+                  key={tool.id}
+                  title={tool.title}
+                  aria-label={tool.title}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => applyEditorTool(tool.id)}
+                >
+                  {tool.label}
+                </button>
+              ))}
+            </div>
             <textarea
+              ref={textareaRef}
               value={body}
               onChange={(event) => {
                 setBody(event.target.value);
@@ -3112,6 +3228,279 @@ function JiraCommentComposerModal({
       </section>
     </div>
   );
+}
+
+function formatCommentSelection(value: string, start: number, end: number, tool: CommentEditorTool) {
+  const selected = value.slice(start, end);
+  const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+  const lineEndIndex = value.indexOf("\n", end);
+  const lineEnd = lineEndIndex === -1 ? value.length : lineEndIndex;
+  const lineSelection = value.slice(lineStart, lineEnd);
+
+  function replaceRange(nextValue: string, nextStart: number, nextEnd: number) {
+    return {
+      value: nextValue,
+      selectionStart: nextStart,
+      selectionEnd: nextEnd
+    };
+  }
+
+  function wrap(prefix: string, suffix: string, placeholder: string) {
+    const content = selected || placeholder;
+    const insert = `${prefix}${content}${suffix}`;
+    const next = value.slice(0, start) + insert + value.slice(end);
+    return replaceRange(next, start + prefix.length, start + prefix.length + content.length);
+  }
+
+  function prefixLines(prefixForLine: (line: string, index: number) => string, placeholder: string) {
+    const source = lineSelection || placeholder;
+    const lines = source.split("\n");
+    const insert = lines.map((line, index) => line.trim() ? `${prefixForLine(line, index)}${line.replace(/^\s+/, "")}` : line).join("\n");
+    const next = value.slice(0, lineStart) + insert + value.slice(lineEnd);
+    return replaceRange(next, lineStart, lineStart + insert.length);
+  }
+
+  if (tool === "bold") {
+    return wrap("**", "**", "bold text");
+  }
+  if (tool === "italic") {
+    return wrap("_", "_", "italic text");
+  }
+  if (tool === "underline") {
+    return wrap("__", "__", "underlined text");
+  }
+  if (tool === "strike") {
+    return wrap("~~", "~~", "struck text");
+  }
+  if (tool === "inlineCode") {
+    return wrap("`", "`", "code");
+  }
+  if (tool === "link") {
+    const content = selected || "link text";
+    const insert = `[${content}](https://)`;
+    const next = value.slice(0, start) + insert + value.slice(end);
+    const urlStart = start + content.length + 3;
+    return replaceRange(next, urlStart, urlStart + "https://".length);
+  }
+  if (tool === "heading2") {
+    return prefixLines(() => "## ", "Heading");
+  }
+  if (tool === "heading3") {
+    return prefixLines(() => "### ", "Subheading");
+  }
+  if (tool === "bulletList") {
+    return prefixLines(() => "- ", "List item");
+  }
+  if (tool === "orderedList") {
+    return prefixLines((_line, index) => `${index + 1}. `, "List item");
+  }
+  if (tool === "quote") {
+    return prefixLines(() => "> ", "Quoted note");
+  }
+  if (tool === "codeBlock") {
+    const content = selected || "code";
+    const leadingBreak = start > 0 && value[start - 1] !== "\n" ? "\n\n" : "";
+    const trailingBreak = end < value.length && value[end] !== "\n" ? "\n\n" : "";
+    const insert = `${leadingBreak}\`\`\`\n${content}\n\`\`\`${trailingBreak}`;
+    const next = value.slice(0, start) + insert + value.slice(end);
+    const contentStart = start + leadingBreak.length + 4;
+    return replaceRange(next, contentStart, contentStart + content.length);
+  }
+
+  const leadingBreak = start > 0 && !value.slice(0, start).endsWith("\n\n") ? "\n\n" : "";
+  const trailingBreak = end < value.length && !value.slice(end).startsWith("\n\n") ? "\n\n" : "";
+  const insert = `${leadingBreak}---${trailingBreak}`;
+  const next = value.slice(0, start) + insert + value.slice(end);
+  return replaceRange(next, start + insert.length, start + insert.length);
+}
+
+function buildJiraCommentAdf(markup: string): JiraAdfDocument {
+  const lines = String(markup || "").replace(/\r\n/g, "\n").split("\n");
+  const content: JiraAdfNode[] = [];
+  let index = 0;
+
+  function pushParagraph(paragraphLines: string[]) {
+    const text = paragraphLines.join("\n").trimEnd();
+    if (text.trim()) {
+      content.push(paragraphNode(text));
+    }
+  }
+
+  while (index < lines.length) {
+    const line = lines[index] || "";
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      index += 1;
+      continue;
+    }
+
+    const fence = trimmed.match(/^```([A-Za-z0-9_-]+)?\s*$/);
+    if (fence) {
+      const codeLines: string[] = [];
+      index += 1;
+      while (index < lines.length && !/^```\s*$/.test(lines[index].trim())) {
+        codeLines.push(lines[index]);
+        index += 1;
+      }
+      if (index < lines.length) {
+        index += 1;
+      }
+      content.push({
+        type: "codeBlock",
+        attrs: fence[1] ? { language: fence[1] } : undefined,
+        content: [{ type: "text", text: codeLines.join("\n") || " " }]
+      });
+      continue;
+    }
+
+    if (/^---+$/.test(trimmed)) {
+      content.push({ type: "rule" });
+      index += 1;
+      continue;
+    }
+
+    const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      content.push({
+        type: "heading",
+        attrs: { level: Math.min(3, heading[1].length) },
+        content: inlineNodes(heading[2])
+      });
+      index += 1;
+      continue;
+    }
+
+    if (/^>\s?/.test(trimmed)) {
+      const quoteLines: string[] = [];
+      while (index < lines.length && /^>\s?/.test((lines[index] || "").trim())) {
+        quoteLines.push((lines[index] || "").trim().replace(/^>\s?/, ""));
+        index += 1;
+      }
+      content.push({
+        type: "blockquote",
+        content: quoteLines.join("\n\n").split(/\n{2,}/).filter(Boolean).map((text) => paragraphNode(text))
+      });
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(trimmed)) {
+      const items: JiraAdfNode[] = [];
+      while (index < lines.length && /^[-*]\s+/.test((lines[index] || "").trim())) {
+        items.push(listItemNode((lines[index] || "").trim().replace(/^[-*]\s+/, "")));
+        index += 1;
+      }
+      content.push({ type: "bulletList", content: items });
+      continue;
+    }
+
+    if (/^\d+\.\s+/.test(trimmed)) {
+      const items: JiraAdfNode[] = [];
+      while (index < lines.length && /^\d+\.\s+/.test((lines[index] || "").trim())) {
+        items.push(listItemNode((lines[index] || "").trim().replace(/^\d+\.\s+/, "")));
+        index += 1;
+      }
+      content.push({ type: "orderedList", content: items });
+      continue;
+    }
+
+    const paragraphLines: string[] = [];
+    while (index < lines.length) {
+      const candidate = lines[index] || "";
+      const candidateTrimmed = candidate.trim();
+      if (!candidateTrimmed) {
+        break;
+      }
+      if (
+        /^```/.test(candidateTrimmed)
+        || /^---+$/.test(candidateTrimmed)
+        || /^(#{1,3})\s+/.test(candidateTrimmed)
+        || /^>\s?/.test(candidateTrimmed)
+        || /^[-*]\s+/.test(candidateTrimmed)
+        || /^\d+\.\s+/.test(candidateTrimmed)
+      ) {
+        break;
+      }
+      paragraphLines.push(candidate);
+      index += 1;
+    }
+    pushParagraph(paragraphLines);
+  }
+
+  return {
+    type: "doc",
+    version: 1,
+    content: content.length ? content : [paragraphNode(String(markup || "").trim() || " ")]
+  };
+}
+
+function listItemNode(text: string): JiraAdfNode {
+  return {
+    type: "listItem",
+    content: [paragraphNode(text)]
+  };
+}
+
+function paragraphNode(text: string): JiraAdfNode {
+  const lines = String(text || "").split("\n");
+  const content = lines.flatMap((line, index) => {
+    const nodes: JiraAdfNode[] = [];
+    if (index > 0) {
+      nodes.push({ type: "hardBreak" });
+    }
+    nodes.push(...inlineNodes(line));
+    return nodes;
+  });
+
+  return {
+    type: "paragraph",
+    content: content.length ? content : [{ type: "text", text: " " }]
+  };
+}
+
+function inlineNodes(text: string): JiraAdfNode[] {
+  const nodes: JiraAdfNode[] = [];
+  const tokenPattern = /(\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|`[^`]+`|_[^_]+_|\[[^\]]+\]\(([^)]+)\))/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = tokenPattern.exec(text)) !== null) {
+    if (match.index > cursor) {
+      nodes.push({ type: "text", text: text.slice(cursor, match.index) });
+    }
+
+    const token = match[0];
+    const linkMatch = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (linkMatch) {
+      const href = safeJiraCommentHref(linkMatch[2]);
+      nodes.push(href
+        ? { type: "text", text: linkMatch[1], marks: [{ type: "link", attrs: { href } }] }
+        : { type: "text", text: linkMatch[1] });
+    } else if (token.startsWith("**")) {
+      nodes.push({ type: "text", text: token.slice(2, -2), marks: [{ type: "strong" }] });
+    } else if (token.startsWith("__")) {
+      nodes.push({ type: "text", text: token.slice(2, -2), marks: [{ type: "underline" }] });
+    } else if (token.startsWith("~~")) {
+      nodes.push({ type: "text", text: token.slice(2, -2), marks: [{ type: "strike" }] });
+    } else if (token.startsWith("`")) {
+      nodes.push({ type: "text", text: token.slice(1, -1), marks: [{ type: "code" }] });
+    } else if (token.startsWith("_")) {
+      nodes.push({ type: "text", text: token.slice(1, -1), marks: [{ type: "em" }] });
+    }
+
+    cursor = tokenPattern.lastIndex;
+  }
+
+  if (cursor < text.length) {
+    nodes.push({ type: "text", text: text.slice(cursor) });
+  }
+
+  return nodes.length ? nodes : [{ type: "text", text: " " }];
+}
+
+function safeJiraCommentHref(value: string) {
+  const href = String(value || "").trim();
+  return /^(https?:\/\/|mailto:|tel:)/i.test(href) ? href : "";
 }
 
 function ChecklistWorkspace({ issue, data }: { issue: Issue; data: DashboardData | null }) {
