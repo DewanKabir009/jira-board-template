@@ -717,6 +717,167 @@ h3 {
   font-weight: 750;
 }
 
+.automation-playbook {
+  display: grid;
+  gap: 16px;
+  border: 1px solid rgba(0, 143, 90, 0.26);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.97), rgba(224, 255, 237, 0.76)),
+    radial-gradient(circle at top right, rgba(255, 121, 0, 0.16), transparent 28%);
+  box-shadow: 0 16px 42px rgba(0, 84, 122, 0.14);
+  padding: 18px;
+}
+
+.automation-playbook-hero,
+.automation-section-heading {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.automation-playbook-hero h2,
+.automation-section-heading h3,
+.automation-architecture h3,
+.automation-acceptance h3 {
+  margin: 0;
+}
+
+.automation-playbook-hero p,
+.automation-architecture p,
+.automation-check-item small,
+.automation-runbook li,
+.automation-acceptance p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.automation-playbook-progress {
+  display: grid;
+  min-width: min(360px, 100%);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.automation-playbook-progress div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 10px;
+}
+
+.automation-playbook-progress dt {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.automation-playbook-progress dd {
+  margin: 5px 0 0;
+  color: var(--blue);
+  font-size: 1.1rem;
+  font-weight: 950;
+}
+
+.automation-architecture,
+.automation-playbook-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.automation-architecture article,
+.automation-checklist,
+.automation-runbook {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 14px;
+}
+
+.automation-architecture article {
+  display: grid;
+  gap: 8px;
+}
+
+.automation-architecture article > span {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ff7900, #00a651);
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 950;
+}
+
+.automation-playbook-grid {
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+}
+
+.automation-section-heading span {
+  border-radius: 999px;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 0.76rem;
+  font-weight: 900;
+  padding: 5px 9px;
+}
+
+.automation-checklist-items {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.automation-check-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: flex-start;
+  border: 1px solid rgba(0, 144, 213, 0.2);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(240, 249, 255, 0.72), rgba(255, 255, 255, 0.94));
+  padding: 10px;
+}
+
+.automation-check-item.complete {
+  border-color: rgba(0, 143, 90, 0.34);
+  background: linear-gradient(135deg, rgba(216, 255, 232, 0.8), rgba(255, 255, 255, 0.96));
+}
+
+.automation-check-item input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--green);
+}
+
+.automation-check-item span {
+  display: grid;
+  gap: 3px;
+}
+
+.automation-check-item strong {
+  color: var(--text);
+}
+
+.automation-runbook ol {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding-left: 20px;
+}
+
+.automation-acceptance {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
 .migration-rollout-details {
   opacity: 0.9;
 }
@@ -1620,75 +1781,6 @@ h3 {
   background: linear-gradient(135deg, var(--blue-soft), var(--sky-soft) 55%, rgba(216, 255, 232, 0.82));
   color: var(--blue);
   box-shadow: 0 8px 18px rgba(0, 95, 204, 0.16);
-}
-
-.golfnow-central-embed {
-  display: grid;
-  overflow: hidden;
-  border: 1px solid rgba(0, 143, 90, 0.26);
-  border-radius: 8px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(224, 255, 237, 0.72));
-  box-shadow: 0 12px 30px rgba(0, 84, 122, 0.12);
-}
-
-.golfnow-central-embed summary {
-  display: flex;
-  min-height: 48px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  cursor: pointer;
-  list-style: none;
-  padding: 10px 14px;
-}
-
-.golfnow-central-embed summary::-webkit-details-marker {
-  display: none;
-}
-
-.golfnow-central-embed summary > span,
-.golfnow-central-embed summary a {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.86rem;
-  font-weight: 900;
-}
-
-.golfnow-central-embed summary > span {
-  color: var(--text);
-}
-
-.golfnow-central-embed summary a {
-  border: 1px solid rgba(0, 95, 204, 0.25);
-  border-radius: 8px;
-  background: #ffffff;
-  color: var(--blue);
-  min-height: 30px;
-  padding: 0 10px;
-  text-decoration: none;
-}
-
-.embed-status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #ff7900, #00a651);
-  box-shadow: 0 0 0 4px rgba(0, 143, 90, 0.12);
-}
-
-.golfnow-central-frame-shell {
-  min-height: min(72vh, 760px);
-  border-top: 1px solid rgba(0, 143, 90, 0.2);
-  background: #ffffff;
-}
-
-.golfnow-central-frame-shell iframe {
-  display: block;
-  width: 100%;
-  height: min(72vh, 760px);
-  border: 0;
-  background: #ffffff;
 }
 
 .explorer-filters {
@@ -3845,6 +3937,20 @@ h3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .automation-playbook-hero,
+  .automation-playbook-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .automation-playbook-hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .automation-architecture {
+    grid-template-columns: 1fr;
+  }
+
   .ticket-card-meta,
   .subtask-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3885,7 +3991,8 @@ h3 {
     .pull-change-grid,
     .pull-stats,
     .analytics-grid,
-    .explorer-filters {
+    .explorer-filters,
+    .automation-playbook-progress {
     grid-template-columns: 1fr;
   }
 
@@ -3978,17 +4085,6 @@ h3 {
 
   .jira-comment-composer textarea {
     min-height: 220px;
-  }
-
-  .golfnow-central-embed summary {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .golfnow-central-frame-shell,
-  .golfnow-central-frame-shell iframe {
-    height: 68vh;
-    min-height: 420px;
   }
 
   .ticket-detail-modal-body {

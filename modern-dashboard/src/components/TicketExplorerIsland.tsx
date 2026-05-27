@@ -343,7 +343,6 @@ const DEFAULT_ASSIGNABLE_ASSIGNEES = [
   "Alex McNay",
   "Anton Yurkevich"
 ];
-const GOLFNOW_CENTRAL_DEV_URL = "https://golfnowcentral.dev.golfnow.io/";
 const COMMENT_EDITOR_TOOLS: CommentEditorToolConfig[] = [
   { id: "heading2", label: "H2", title: "Heading" },
   { id: "heading3", label: "H3", title: "Subheading" },
@@ -358,6 +357,46 @@ const COMMENT_EDITOR_TOOLS: CommentEditorToolConfig[] = [
   { id: "quote", label: "Quote", title: "Quote" },
   { id: "codeBlock", label: "Code", title: "Code block" },
   { id: "rule", label: "Line", title: "Divider" }
+];
+const PLAYWRIGHT_SPEC_ITEMS = [
+  {
+    id: "pw-01",
+    title: "Define the runner contract",
+    detail: "Document the job payload, allowed script names, required parameters, and artifact fields before any execution endpoint is wired."
+  },
+  {
+    id: "pw-02",
+    title: "Stand up a protected Playwright runner",
+    detail: "Host a Node runner behind Cloudflare Access with a locked script registry, no arbitrary code execution, and per-job audit records."
+  },
+  {
+    id: "pw-03",
+    title: "Queue jobs from the dashboard",
+    detail: "Add a 123-only Run automation control that calls the bridge, starts a job, and returns a durable job id."
+  },
+  {
+    id: "pw-04",
+    title: "Stream observable progress",
+    detail: "Expose status, current step, logs, latest screenshot, and failure reason so users can watch the run without opening a terminal."
+  },
+  {
+    id: "pw-05",
+    title: "Publish final evidence",
+    detail: "Attach final screenshot, video, trace zip, timing, and result summary back into the dashboard job record."
+  },
+  {
+    id: "pw-06",
+    title: "Gate production usage",
+    detail: "Require named users, fixed environments, rate limits, and rollback instructions before enabling more scripts."
+  }
+];
+const PLAYWRIGHT_PLAYBOOK_STEPS = [
+  "Select an approved automation script from the registry.",
+  "Review the ticket, target environment, and required credentials before starting the job.",
+  "Start the job from the 123 dashboard and keep the job id visible.",
+  "Watch live logs and screenshots; stop the run if it leaves the expected environment.",
+  "Review video, trace, and final result before using the evidence in Jira.",
+  "If the runner fails, keep the dashboard usable and link to the failed job artifacts."
 ];
 const STATUS_ORDER = [
   "Blocked",
@@ -924,8 +963,6 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
           </div>
         </div>
 
-        <GolfNowCentralEmbed />
-
         <JiraTicketSearch
           projectOptions={jiraProjectOptions}
           project={ticketSearchProject}
@@ -1035,6 +1072,8 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
         </div>
       </section>
 
+      {isPlaywrightPilotBoard(data) ? <PlaywrightAutomationPlaybook data={data} /> : null}
+
       <DataPullSection data={data} loadError={loadError} />
 
       <OperationsHealthCenter health={operationsHealth} />
@@ -1085,31 +1124,6 @@ function ViewToggle({ value, onChange }: { value: ExplorerView; onChange: (value
         </button>
       </div>
     </div>
-  );
-}
-
-function GolfNowCentralEmbed() {
-  return (
-    <details className="golfnow-central-embed">
-      <summary>
-        <span>
-          <span className="embed-status-dot" aria-hidden="true" />
-          GolfNow Central DEV
-        </span>
-        <a href={GOLFNOW_CENTRAL_DEV_URL} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
-          Open full page
-        </a>
-      </summary>
-      <div className="golfnow-central-frame-shell">
-        <iframe
-          title="GolfNow Central DEV"
-          src={GOLFNOW_CENTRAL_DEV_URL}
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
-        />
-      </div>
-    </details>
   );
 }
 
@@ -1265,6 +1279,141 @@ function ComponentInventory({
       </div>
     </section>
   );
+}
+
+function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) {
+  const storageKey = `playwright-automation-playbook:${data?.repositorySlug || data?.version || "v3001.123.0"}`;
+  const [loaded, setLoaded] = useState(false);
+  const [completed, setCompleted] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(storageKey);
+      const parsed = stored ? JSON.parse(stored) : [];
+      setCompleted(new Set(Array.isArray(parsed) ? parsed.map(String) : []));
+    } catch {
+      setCompleted(new Set());
+    }
+    setLoaded(true);
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!loaded) {
+      return;
+    }
+
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(Array.from(completed)));
+    } catch {
+      // Checklist persistence is a convenience only; the playbook remains readable without it.
+    }
+  }, [completed, loaded, storageKey]);
+
+  function toggleItem(itemId: string) {
+    setCompleted((current) => {
+      const next = new Set(current);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  }
+
+  const completeCount = PLAYWRIGHT_SPEC_ITEMS.filter((item) => completed.has(item.id)).length;
+  const progress = Math.round((completeCount / PLAYWRIGHT_SPEC_ITEMS.length) * 100);
+
+  return (
+    <section className="automation-playbook" aria-labelledby="automation-playbook-heading">
+      <div className="automation-playbook-hero">
+        <div>
+          <p className="eyebrow">123 pilot spec</p>
+          <h2 id="automation-playbook-heading">Playwright automation playbook</h2>
+          <p>
+            Spec-driven checklist for dashboard-triggered Playwright jobs. The static board will stay a command center; execution belongs in a protected hosted runner.
+          </p>
+        </div>
+        <dl className="automation-playbook-progress" aria-label="Playbook progress">
+          <div>
+            <dt>Spec progress</dt>
+            <dd>{completeCount}/{PLAYWRIGHT_SPEC_ITEMS.length}</dd>
+          </div>
+          <div>
+            <dt>Readiness</dt>
+            <dd>{progress}%</dd>
+          </div>
+          <div>
+            <dt>Pilot board</dt>
+            <dd>{data?.version || "v3001.123.0"}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div className="automation-architecture">
+        <article>
+          <span>1</span>
+          <h3>Dashboard command</h3>
+          <p>123 board collects the job request and shows job status, logs, screenshots, video, and trace links.</p>
+        </article>
+        <article>
+          <span>2</span>
+          <h3>Secure bridge</h3>
+          <p>Cloudflare Access validates the user and forwards only approved job payloads to the runner.</p>
+        </article>
+        <article>
+          <span>3</span>
+          <h3>Playwright runner</h3>
+          <p>A hosted Node process runs approved scripts and writes progress plus artifacts to a job record.</p>
+        </article>
+      </div>
+
+      <div className="automation-playbook-grid">
+        <div className="automation-checklist">
+          <div className="automation-section-heading">
+            <h3>Implementation checklist</h3>
+            <span>{completeCount} complete</span>
+          </div>
+          <div className="automation-checklist-items">
+            {PLAYWRIGHT_SPEC_ITEMS.map((item) => {
+              const checked = completed.has(item.id);
+              return (
+                <label className={checked ? "automation-check-item complete" : "automation-check-item"} key={item.id}>
+                  <input type="checkbox" checked={checked} onChange={() => toggleItem(item.id)} />
+                  <span>
+                    <strong>{item.title}</strong>
+                    <small>{item.detail}</small>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="automation-runbook">
+          <div className="automation-section-heading">
+            <h3>Execution playbook</h3>
+            <span>Draft</span>
+          </div>
+          <ol>
+            {PLAYWRIGHT_PLAYBOOK_STEPS.map((step) => <li key={step}>{step}</li>)}
+          </ol>
+          <div className="automation-acceptance">
+            <h3>Acceptance target</h3>
+            <p>
+              A user can start an approved Playwright job from this board, watch live evidence, and open final artifacts without terminal access.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function isPlaywrightPilotBoard(data: DashboardData | null) {
+  const version = String(data?.version || "").toLowerCase();
+  const repository = String(data?.repositorySlug || "").toLowerCase();
+  return version === "v3001.123.0" || repository.endsWith("jira-board-v3001-123-0");
 }
 
 function DataPullSection({ data, loadError }: { data: DashboardData | null; loadError: string }) {
