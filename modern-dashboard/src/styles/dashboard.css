@@ -1784,7 +1784,7 @@ h3 {
   padding: 5px;
 }
 
-.view-toggle > span {
+.view-toggle > span:not(.view-refresh-status) {
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 900;
@@ -1800,6 +1800,7 @@ h3 {
 
 .preset-button,
 .view-toggle-button,
+.view-refresh-button,
 .pagination-bar button,
 .row-actions button,
 .row-actions a,
@@ -1823,6 +1824,83 @@ h3 {
 .view-toggle-button {
   min-height: 32px;
   padding: 0 10px;
+}
+
+.view-refresh-button {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-color: rgba(0, 95, 204, 0.34);
+  color: var(--blue);
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.view-refresh-button:hover,
+.view-refresh-button:focus-visible {
+  border-color: var(--green);
+  box-shadow: 0 8px 18px rgba(0, 146, 69, 0.16);
+}
+
+.view-refresh-button.submitting {
+  border-color: var(--green);
+  background: linear-gradient(135deg, rgba(216, 255, 232, 0.92), rgba(232, 246, 255, 0.94));
+  color: var(--green-dark);
+}
+
+.view-refresh-button.submitted {
+  border-color: var(--green);
+  color: var(--green-dark);
+}
+
+.view-refresh-button.failed {
+  border-color: var(--rose);
+  color: var(--rose);
+}
+
+.view-refresh-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.refresh-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.refresh-icon.spinning {
+  animation: refresh-spin 0.9s linear infinite;
+}
+
+.view-refresh-status {
+  max-width: 320px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.view-refresh-status.submitted {
+  color: var(--green-dark);
+}
+
+.view-refresh-status.failed {
+  color: var(--rose);
+}
+
+.view-refresh-status a {
+  color: inherit;
+  font-weight: 950;
+  margin-left: 6px;
+}
+
+@keyframes refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .preset-button.active,
@@ -4107,6 +4185,15 @@ h3 {
 
   .view-toggle-buttons {
     width: 100%;
+  }
+
+  .view-refresh-button {
+    width: 100%;
+  }
+
+  .view-refresh-status {
+    max-width: none;
+    padding-inline: 5px;
   }
 
   .table-summary,

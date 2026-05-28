@@ -331,6 +331,13 @@ type BridgeButtonStatus = {
   tone: HealthTone;
 };
 
+type RefreshRequestState = {
+  status: "idle" | "submitting" | "submitted" | "failed";
+  message: string;
+  requestedAt?: string;
+  actionsUrl?: string;
+};
+
 type TicketSearchStatus = {
   message: string;
   tone: HealthTone;
@@ -457,6 +464,7 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   const [ticketSearchNumber, setTicketSearchNumber] = useState("");
   const [ticketSearchStatus, setTicketSearchStatus] = useState<TicketSearchStatus>({ message: "", tone: "neutral" });
   const [ticketSearchBusy, setTicketSearchBusy] = useState(false);
+  const [refreshRequest, setRefreshRequest] = useState<RefreshRequestState>({ status: "idle", message: "" });
   const [jiraBridgeProjects, setJiraBridgeProjects] = useState<SelectOption[]>([]);
   const [assignmentStateByKey, setAssignmentStateByKey] = useState<Record<string, AssignmentRequestState>>({});
   const [sorting, setSorting] = useState<SortingState>([{ id: "updatedDisplay", desc: true }]);
@@ -916,6 +924,66 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
     });
   }
 
+  async function requestTicketRefresh() {
+    const endpoint = bridgeRefreshEndpoint(data);
+    const requestedAt = new Date().toISOString();
+
+    if (!endpoint) {
+      setRefreshRequest({
+        status: "failed",
+        message: "No Cloudflare refresh bridge is configured for this board.",
+        requestedAt
+      });
+      return;
+    }
+
+    setRefreshRequest({
+      status: "submitting",
+      message: "Starting the Jira ticket refresh workflow...",
+      requestedAt
+    });
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=UTF-8" },
+        credentials: "include",
+        body: JSON.stringify({
+          releaseVersion: data?.version || "",
+          repositorySlug: data?.repositorySlug || "",
+          dashboardUrl: data?.dashboardUrl || (typeof window === "undefined" ? "" : window.location.href),
+          requestedAt
+        })
+      });
+      const payload = await response.json().catch(() => ({
+        ok: false,
+        message: "The refresh bridge returned an unreadable response."
+      }));
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || payload?.error || "The refresh bridge rejected the request.");
+      }
+
+      setRefreshRequest({
+        status: "submitted",
+        message: payload.message || "Refresh workflow started. The board will update after GitHub Pages republishes.",
+        requestedAt,
+        actionsUrl: payload.actionsUrl || (data?.repositorySlug ? workflowUrl(data.repositorySlug, "refresh-jira-board.yml") : "")
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Refresh workflow could not be started.";
+      setRefreshRequest({
+        status: "failed",
+        message: isHostedBridgeEndpoint(data?.assigneeDispatchEndpoint || "") && /failed to fetch|unreadable|load failed|network/i.test(errorMessage)
+          ? "Cloudflare login is required. Open the bridge link, then retry."
+          : errorMessage,
+        requestedAt,
+        actionsUrl: data?.repositorySlug ? workflowUrl(data.repositorySlug, "refresh-jira-board.yml") : ""
+      });
+      console.error(error);
+    }
+  }
+
   return (
     <main className={`dashboard-shell modern-explorer-shell ${explorerView === "table" ? "table-shell" : ""}`}>
       <section className="board-hero" aria-labelledby="board-title">
@@ -972,7 +1040,13 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
             <h2 id="explorer-heading">Ticket board</h2>
           </div>
           <div className="explorer-toolbar-actions">
-            <ViewToggle value={explorerView} onChange={setExplorerView} />
+            <ViewToggle
+              value={explorerView}
+              onChange={setExplorerView}
+              refresh={refreshRequest}
+              refreshDisabled={!data || refreshRequest.status === "submitting"}
+              onRefresh={requestTicketRefresh}
+            />
             <div className="preset-group" aria-label="Saved views">
               <PresetButton label="All" active={activePreset === "all"} onClick={() => applyPreset("all")} />
               <PresetButton label="QA testing" active={activePreset === "qa"} onClick={() => applyPreset("qa")} />
@@ -1121,7 +1195,21 @@ export default function TicketExplorerIsland({ dataUrl, boardRegistryUrl }: { da
   );
 }
 
-function ViewToggle({ value, onChange }: { value: ExplorerView; onChange: (value: ExplorerView) => void }) {
+function ViewToggle({
+  value,
+  onChange,
+  refresh,
+  refreshDisabled,
+  onRefresh
+}: {
+  value: ExplorerView;
+  onChange: (value: ExplorerView) => void;
+  refresh: RefreshRequestState;
+  refreshDisabled: boolean;
+  onRefresh: () => void;
+}) {
+  const refreshLabel = refresh.status === "submitting" ? "Refreshing" : "Refresh tickets";
+
   return (
     <div className="view-toggle" aria-label="View">
       <span>View</span>
@@ -1143,7 +1231,33 @@ function ViewToggle({ value, onChange }: { value: ExplorerView; onChange: (value
           Table
         </button>
       </div>
+      <button
+        type="button"
+        className={`view-refresh-button ${refresh.status}`}
+        onClick={onRefresh}
+        disabled={refreshDisabled}
+        aria-live="polite"
+      >
+        <RefreshIcon spinning={refresh.status === "submitting"} />
+        <span>{refreshLabel}</span>
+      </button>
+      {refresh.message ? (
+        <span className={`view-refresh-status ${refresh.status}`}>
+          {refresh.message}
+          {refresh.actionsUrl ? (
+            <a href={refresh.actionsUrl} target="_blank" rel="noreferrer">Actions</a>
+          ) : null}
+        </span>
+      ) : null}
     </div>
+  );
+}
+
+function RefreshIcon({ spinning = false }: { spinning?: boolean }) {
+  return (
+    <svg className={spinning ? "refresh-icon spinning" : "refresh-icon"} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M20 11.2a8.2 8.2 0 0 0-14.1-5.1L4.2 7.8V3H3v7h7V8.8H5.1l1.7-1.7a7 7 0 0 1 12 4.2h1.2Zm-16 1.6A8.2 8.2 0 0 0 18.1 18l1.7-1.7V21H21v-7h-7v1.2h4.9l-1.7 1.7a7 7 0 0 1-12-4.2H4Z" fill="currentColor" />
+    </svg>
   );
 }
 
@@ -2972,6 +3086,17 @@ function bridgeProjectsEndpoint(data: DashboardData | null) {
   }
 
   base.pathname = "/projects";
+  base.search = "";
+  return base.toString();
+}
+
+function bridgeRefreshEndpoint(data: DashboardData | null) {
+  const base = bridgeApiBase(data);
+  if (!base) {
+    return "";
+  }
+
+  base.pathname = "/refresh";
   base.search = "";
   return base.toString();
 }

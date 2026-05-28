@@ -15,6 +15,7 @@ const repo =
   "DewanKabir009/jira-board-template";
 const workflow = process.env.ASSIGNEE_WORKFLOW || "update-jira-assignee.yml";
 const testChecklistWorkflow = process.env.TEST_CHECKLIST_WORKFLOW || "post-test-checklist-comment.yml";
+const refreshWorkflow = process.env.REFRESH_WORKFLOW || "refresh-jira-board.yml";
 const allowedOrigins = new Set(
   (process.env.ASSIGNEE_ALLOWED_ORIGINS || "https://dewankabir009.github.io,http://127.0.0.1:3991,http://localhost:3991,null")
     .split(",")
@@ -204,6 +205,26 @@ function dispatchChecklistWorkflow({ issueKey, payload }) {
   });
 }
 
+function dispatchRefreshWorkflow() {
+  const gh = findGh();
+  if (!gh) {
+    throw new Error("GitHub CLI was not found. Install gh or set GH_PATH.");
+  }
+
+  cp.execFileSync(gh, [
+    "workflow",
+    "run",
+    refreshWorkflow,
+    "--repo",
+    repo,
+    "--ref",
+    "master",
+  ], {
+    stdio: "pipe",
+    windowsHide: true,
+  });
+}
+
 const server = http.createServer(async (request, response) => {
   const origin = request.headers.origin || "";
 
@@ -217,7 +238,7 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
-  if (request.method !== "POST" || !["/assign", "/comment-checklist"].includes(request.url)) {
+  if (request.method !== "POST" || !["/assign", "/comment-checklist", "/refresh"].includes(request.url)) {
     writeJson(response, 404, { ok: false, error: "Not found." }, origin);
     return;
   }
@@ -229,6 +250,18 @@ const server = http.createServer(async (request, response) => {
 
   try {
     const payload = JSON.parse(await readBody(request) || "{}");
+    if (request.url === "/refresh") {
+      dispatchRefreshWorkflow();
+      writeJson(response, 202, {
+        ok: true,
+        repositorySlug: repo,
+        workflowFile: refreshWorkflow,
+        actionsUrl: `https://github.com/${repo}/actions/workflows/${refreshWorkflow}`,
+        message: "Jira ticket refresh workflow started.",
+      }, origin);
+      return;
+    }
+
     if (request.url === "/comment-checklist") {
       const requestPayload = validateChecklist(payload);
       if (process.env.JIRA_MCP_TOKEN) {
@@ -286,5 +319,5 @@ const server = http.createServer(async (request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`Workflow dispatch bridge listening on http://${host}:${port}/assign and /comment-checklist`);
+  console.log(`Workflow dispatch bridge listening on http://${host}:${port}/assign, /comment-checklist, and /refresh`);
 });
