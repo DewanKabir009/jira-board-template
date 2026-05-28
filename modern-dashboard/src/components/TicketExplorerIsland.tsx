@@ -376,33 +376,51 @@ const PLAYWRIGHT_SPEC_ITEMS = [
   {
     id: "pw-01",
     title: "Define the runner contract",
+    status: "In progress",
+    href: "../playwright-specs/runner-contract.html",
     detail: "Document the job payload, allowed script names, required parameters, and artifact fields before any execution endpoint is wired."
   },
   {
     id: "pw-02",
     title: "Stand up a protected Playwright runner",
+    status: "Planned",
+    href: "../playwright-specs/#pw-02",
     detail: "Host a Node runner behind Cloudflare Access with a locked script registry, no arbitrary code execution, and per-job audit records."
   },
   {
     id: "pw-03",
     title: "Queue jobs from the dashboard",
+    status: "Planned",
+    href: "../playwright-specs/#pw-03",
     detail: "Add a 123-only Run automation control that calls the bridge, starts a job, and returns a durable job id."
   },
   {
     id: "pw-04",
     title: "Stream observable progress",
+    status: "Planned",
+    href: "../playwright-specs/#pw-04",
     detail: "Expose status, current step, logs, latest screenshot, and failure reason so users can watch the run without opening a terminal."
   },
   {
     id: "pw-05",
     title: "Publish final evidence",
+    status: "Planned",
+    href: "../playwright-specs/#pw-05",
     detail: "Attach final screenshot, video, trace zip, timing, and result summary back into the dashboard job record."
   },
   {
     id: "pw-06",
     title: "Gate production usage",
+    status: "Planned",
+    href: "../playwright-specs/#pw-06",
     detail: "Require named users, fixed environments, rate limits, and rollback instructions before enabling more scripts."
   }
+];
+const PLAYWRIGHT_RESOURCE_LINKS = [
+  { label: "Spec home", href: "../playwright-specs/" },
+  { label: "Runner contract", href: "../playwright-specs/runner-contract.html" },
+  { label: "Job schema", href: "../playwright-specs/job-contract.schema.json" },
+  { label: "Script registry", href: "../playwright-specs/script-registry.json" }
 ];
 const PLAYWRIGHT_PLAYBOOK_STEPS = [
   "Select an approved automation script from the registry.",
@@ -1467,6 +1485,11 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
           <p>
             Spec-driven checklist for dashboard-triggered Playwright jobs. The static board will stay a command center; execution belongs in a protected hosted runner.
           </p>
+          <div className="automation-resource-links" aria-label="Playwright spec resources">
+            {PLAYWRIGHT_RESOURCE_LINKS.map((link) => (
+              <a href={link.href} target="_blank" rel="noreferrer" key={link.href}>{link.label}</a>
+            ))}
+          </div>
         </div>
         <dl className="automation-playbook-progress" aria-label="Playbook progress">
           <div>
@@ -1515,8 +1538,12 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
                 <label className={checked ? "automation-check-item complete" : "automation-check-item"} key={item.id}>
                   <input type="checkbox" checked={checked} onChange={() => toggleItem(item.id)} />
                   <span>
-                    <strong>{item.title}</strong>
+                    <span className="automation-check-item-title">
+                      <strong>{item.title}</strong>
+                      <em>{item.status}</em>
+                    </span>
                     <small>{item.detail}</small>
+                    <a href={item.href} target="_blank" rel="noreferrer">Open spec</a>
                   </span>
                 </label>
               );

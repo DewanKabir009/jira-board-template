@@ -831,6 +831,36 @@ h3 {
   font-weight: 950;
 }
 
+.automation-resource-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.automation-resource-links a,
+.automation-check-item a {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--blue);
+  font-size: 0.8rem;
+  font-weight: 900;
+  padding: 0 10px;
+  text-decoration: none;
+}
+
+.automation-resource-links a:first-child {
+  border-color: var(--green);
+  background: linear-gradient(135deg, var(--green), var(--blue));
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgba(0, 95, 204, 0.16);
+}
+
 .automation-architecture,
 .automation-playbook-grid {
   display: grid;
@@ -897,6 +927,32 @@ h3 {
 .automation-check-item.complete {
   border-color: rgba(0, 143, 90, 0.34);
   background: linear-gradient(135deg, rgba(216, 255, 232, 0.8), rgba(255, 255, 255, 0.96));
+}
+
+.automation-check-item-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.automation-check-item-title em {
+  border-radius: 999px;
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 950;
+  padding: 4px 8px;
+}
+
+.automation-check-item small,
+.automation-check-item a {
+  margin-top: 6px;
+}
+
+.automation-check-item a {
+  width: fit-content;
 }
 
 .automation-check-item input {
