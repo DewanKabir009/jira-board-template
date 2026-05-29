@@ -1042,6 +1042,31 @@ h3 {
   opacity: 0.62;
 }
 
+.automation-results-ready {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  border: 1px solid rgba(0, 122, 77, 0.42);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(210, 255, 229, 0.95), rgba(244, 255, 250, 0.98));
+  color: #075536;
+  font-size: 0.86rem;
+  padding: 10px 12px;
+  box-shadow: 0 14px 34px rgba(0, 122, 77, 0.12);
+}
+
+.automation-results-ready strong {
+  color: #06472f;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.automation-results-ready span {
+  color: #255642;
+  font-weight: 760;
+}
+
 .automation-job-status {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1104,6 +1129,23 @@ h3 {
   font-weight: 900;
   padding: 0 10px;
   text-decoration: none;
+}
+
+.automation-job-links a.view-results.ready,
+.automation-job-links a.result-artifact.ready {
+  border-color: rgba(0, 94, 59, 0.74);
+  background: #007a4d;
+  color: #ffffff;
+  box-shadow: 0 12px 26px rgba(0, 122, 77, 0.22);
+}
+
+.automation-job-links a.result-artifact.ready:hover,
+.automation-job-links a.result-artifact.ready:focus-visible,
+.automation-job-links a.view-results.ready:hover,
+.automation-job-links a.view-results.ready:focus-visible {
+  background: #005e3b;
+  border-color: #005e3b;
+  color: #ffffff;
 }
 
 .migration-rollout-details {

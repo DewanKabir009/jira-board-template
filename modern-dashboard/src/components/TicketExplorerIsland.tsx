@@ -1471,12 +1471,18 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
     status: "idle",
     message: "Ready to queue an approved Playwright job."
   });
+  const [completionNotice, setCompletionNotice] = useState("");
+  const notifiedPlaywrightJobId = useRef("");
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem(storageKey);
       const parsed = stored ? JSON.parse(stored) : defaultCompletedIds;
-      setCompleted(new Set(Array.isArray(parsed) ? parsed.map(String) : defaultCompletedIds));
+      const completedIds = new Set(defaultCompletedIds);
+      if (Array.isArray(parsed)) {
+        parsed.map(String).forEach((itemId) => completedIds.add(itemId));
+      }
+      setCompleted(completedIds);
     } catch {
       setCompleted(new Set(defaultCompletedIds));
     }
@@ -1524,6 +1530,20 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
   }, [job.status, job.statusUrl]);
 
   useEffect(() => {
+    if (job.status !== "completed" || !job.jobId || notifiedPlaywrightJobId.current === job.jobId) {
+      return;
+    }
+
+    notifiedPlaywrightJobId.current = job.jobId;
+    const message = `Results are ready for ${job.jobId}. Open View Results, Screenshot, or Video.`;
+    setCompletionNotice(message);
+
+    if (typeof window !== "undefined" && "Notification" in window && window.Notification.permission === "granted") {
+      new window.Notification("Playwright automation complete", { body: message });
+    }
+  }, [job.jobId, job.status]);
+
+  useEffect(() => {
     if (!loaded) {
       return;
     }
@@ -1536,6 +1556,11 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
   }, [completed, loaded, storageKey]);
 
   function toggleItem(itemId: string) {
+    const item = PLAYWRIGHT_SPEC_ITEMS.find((spec) => spec.id === itemId);
+    if (item?.status.toLowerCase() === "complete") {
+      return;
+    }
+
     setCompleted((current) => {
       const next = new Set(current);
       if (next.has(itemId)) {
@@ -1577,6 +1602,7 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
       requestedAt,
       currentStep: "Validating request"
     });
+    setCompletionNotice("");
 
     try {
       const response = await fetch(endpoint, {
@@ -1642,9 +1668,10 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
     }
   }
 
-  const completeCount = PLAYWRIGHT_SPEC_ITEMS.filter((item) => completed.has(item.id)).length;
+  const completeCount = PLAYWRIGHT_SPEC_ITEMS.filter((item) => item.status.toLowerCase() === "complete" || completed.has(item.id)).length;
   const progress = Math.round((completeCount / PLAYWRIGHT_SPEC_ITEMS.length) * 100);
   const jobTone = job.status === "failed" ? "danger" : job.status === "completed" ? "good" : job.status === "idle" ? "neutral" : "attention";
+  const resultsReady = job.status === "completed" && Boolean(job.jobUrl || job.artifacts?.length);
 
   return (
     <section className="automation-playbook" aria-labelledby="automation-playbook-heading">
@@ -1703,10 +1730,15 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
           </div>
           <div className="automation-checklist-items">
             {PLAYWRIGHT_SPEC_ITEMS.map((item) => {
-              const checked = completed.has(item.id);
+              const checked = item.status.toLowerCase() === "complete" || completed.has(item.id);
               return (
                 <label className={checked ? "automation-check-item complete" : "automation-check-item"} key={item.id}>
-                  <input type="checkbox" checked={checked} onChange={() => toggleItem(item.id)} />
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={item.status.toLowerCase() === "complete"}
+                    onChange={() => toggleItem(item.id)}
+                  />
                   <span>
                     <span className="automation-check-item-title">
                       <strong>{item.title}</strong>
@@ -1740,7 +1772,7 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
       <div className="automation-job-console">
         <div className="automation-section-heading">
           <h3>Run approved automation</h3>
-          <span>{job.status}</span>
+          <span>{resultsReady ? "results ready" : job.status}</span>
         </div>
         <div className="automation-job-form">
           <SelectFilter
@@ -1767,6 +1799,12 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
             {job.status === "submitting" ? "Starting..." : "Run Playwright"}
           </button>
         </div>
+        {resultsReady ? (
+          <div className="automation-results-ready" role="status" aria-live="polite">
+            <strong>Results ready</strong>
+            <span>{completionNotice || "Playwright automation completed. Open View Results, Screenshot, or Video."}</span>
+          </div>
+        ) : null}
         <div className={`automation-job-status ${jobTone}`} role="status" aria-live="polite">
           <div>
             <strong>{job.jobId ? `Job ${job.jobId}` : "No active job"}</strong>
@@ -1777,12 +1815,21 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
           <div className="automation-job-links">
             {job.actionsUrl ? <a href={job.actionsUrl} target="_blank" rel="noreferrer">Actions run</a> : null}
             {job.statusUrl ? <a href={job.statusUrl} target="_blank" rel="noreferrer">Summary JSON</a> : null}
-            {job.jobUrl ? <a href={job.jobUrl} target="_blank" rel="noreferrer">Evidence page</a> : null}
-            {(job.artifacts || []).map((artifact) => artifact.href ? (
-              <a href={artifact.href} target="_blank" rel="noreferrer" key={`${artifact.type}-${artifact.href}`}>
+            {job.jobUrl ? <a className={resultsReady ? "view-results ready" : "view-results"} href={job.jobUrl} target="_blank" rel="noreferrer">View Results</a> : null}
+            {(job.artifacts || []).map((artifact) => {
+              const primaryArtifactReady = resultsReady && /screenshot|video/i.test(`${artifact.type || ""} ${artifact.label || ""}`);
+              return artifact.href ? (
+              <a
+                className={primaryArtifactReady ? "result-artifact ready" : "result-artifact"}
+                href={artifact.href}
+                target="_blank"
+                rel="noreferrer"
+                key={`${artifact.type}-${artifact.href}`}
+              >
                 {artifact.label || artifact.type || "Artifact"}
               </a>
-            ) : null)}
+            ) : null;
+            })}
           </div>
         </div>
       </div>
