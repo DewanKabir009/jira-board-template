@@ -338,6 +338,19 @@ type RefreshRequestState = {
   actionsUrl?: string;
 };
 
+type PlaywrightJobRequestState = {
+  status: "idle" | "submitting" | "queued" | "running" | "completed" | "failed";
+  message: string;
+  requestedAt?: string;
+  jobId?: string;
+  actionsUrl?: string;
+  statusUrl?: string;
+  jobUrl?: string;
+  currentStep?: string;
+  artifacts?: Array<{ label?: string; type?: string; href?: string }>;
+  failureReason?: string;
+};
+
 type TicketSearchStatus = {
   message: string;
   tone: HealthTone;
@@ -376,51 +389,62 @@ const PLAYWRIGHT_SPEC_ITEMS = [
   {
     id: "pw-01",
     title: "Define the runner contract",
-    status: "In progress",
+    status: "Complete",
     href: "../playwright-specs/runner-contract.html",
     detail: "Document the job payload, allowed script names, required parameters, and artifact fields before any execution endpoint is wired."
   },
   {
     id: "pw-02",
     title: "Stand up a protected Playwright runner",
-    status: "Planned",
-    href: "../playwright-specs/#pw-02",
+    status: "Complete",
+    href: "../playwright-specs/protected-runner.html",
     detail: "Host a Node runner behind Cloudflare Access with a locked script registry, no arbitrary code execution, and per-job audit records."
   },
   {
     id: "pw-03",
     title: "Queue jobs from the dashboard",
-    status: "Planned",
-    href: "../playwright-specs/#pw-03",
+    status: "Complete",
+    href: "../playwright-specs/dashboard-queue.html",
     detail: "Add a 123-only Run automation control that calls the bridge, starts a job, and returns a durable job id."
   },
   {
     id: "pw-04",
     title: "Stream observable progress",
-    status: "Planned",
-    href: "../playwright-specs/#pw-04",
+    status: "Complete",
+    href: "../playwright-specs/live-progress.html",
     detail: "Expose status, current step, logs, latest screenshot, and failure reason so users can watch the run without opening a terminal."
   },
   {
     id: "pw-05",
     title: "Publish final evidence",
-    status: "Planned",
-    href: "../playwright-specs/#pw-05",
+    status: "Complete",
+    href: "../playwright-specs/evidence-publishing.html",
     detail: "Attach final screenshot, video, trace zip, timing, and result summary back into the dashboard job record."
   },
   {
     id: "pw-06",
     title: "Gate production usage",
-    status: "Planned",
-    href: "../playwright-specs/#pw-06",
+    status: "Complete",
+    href: "../playwright-specs/production-gates.html",
     detail: "Require named users, fixed environments, rate limits, and rollback instructions before enabling more scripts."
   }
 ];
 const PLAYWRIGHT_RESOURCE_LINKS = [
   { label: "Spec home", href: "../playwright-specs/" },
   { label: "Runner contract", href: "../playwright-specs/runner-contract.html" },
+  { label: "Runner workflow", href: "https://github.com/DewanKabir009/jira-board-v3001-123-0/actions/workflows/run-playwright-job.yml" },
   { label: "Job schema", href: "../playwright-specs/job-contract.schema.json" },
   { label: "Script registry", href: "../playwright-specs/script-registry.json" }
+];
+const PLAYWRIGHT_SCRIPT_OPTIONS: SelectOption[] = [
+  { value: "open-ticket-and-capture", label: "Open Jira ticket and capture evidence" },
+  { value: "dashboard-regression-smoke", label: "Dashboard regression smoke" },
+  { value: "golfnow-central-smoke", label: "GolfNow Central smoke check" }
+];
+const PLAYWRIGHT_ENVIRONMENT_OPTIONS: SelectOption[] = [
+  { value: "dev", label: "DEV" },
+  { value: "stg", label: "STG" },
+  { value: "prod-readonly", label: "Prod read-only" }
 ];
 const PLAYWRIGHT_PLAYBOOK_STEPS = [
   "Select an approved automation script from the registry.",
@@ -1435,19 +1459,69 @@ function ComponentInventory({
 
 function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) {
   const storageKey = `playwright-automation-playbook:${data?.repositorySlug || data?.version || "v3001.123.0"}`;
+  const defaultCompletedIds = PLAYWRIGHT_SPEC_ITEMS
+    .filter((item) => item.status.toLowerCase() === "complete")
+    .map((item) => item.id);
   const [loaded, setLoaded] = useState(false);
   const [completed, setCompleted] = useState<Set<string>>(new Set());
+  const [scriptId, setScriptId] = useState(PLAYWRIGHT_SCRIPT_OPTIONS[0].value);
+  const [environment, setEnvironment] = useState("dev");
+  const [ticketKey, setTicketKey] = useState("");
+  const [job, setJob] = useState<PlaywrightJobRequestState>({
+    status: "idle",
+    message: "Ready to queue an approved Playwright job."
+  });
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem(storageKey);
-      const parsed = stored ? JSON.parse(stored) : [];
-      setCompleted(new Set(Array.isArray(parsed) ? parsed.map(String) : []));
+      const parsed = stored ? JSON.parse(stored) : defaultCompletedIds;
+      setCompleted(new Set(Array.isArray(parsed) ? parsed.map(String) : defaultCompletedIds));
     } catch {
-      setCompleted(new Set());
+      setCompleted(new Set(defaultCompletedIds));
     }
     setLoaded(true);
   }, [storageKey]);
+
+  useEffect(() => {
+    if (!ticketKey && data?.issues?.length) {
+      const firstMain = data.issues.find((issue) => !issue.isSubtask && issue.key) || data.issues.find((issue) => issue.key);
+      setTicketKey(firstMain?.key || "");
+    }
+  }, [data?.issues, ticketKey]);
+
+  useEffect(() => {
+    if (!job.statusUrl || job.status === "completed" || job.status === "failed") {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const response = await fetch(job.statusUrl || "", {
+          cache: "no-store",
+          credentials: "include",
+          headers: { Accept: "application/json" }
+        });
+        if (!response.ok) {
+          return;
+        }
+        const summary = await response.json();
+        if (!cancelled) {
+          setJob((current) => mergePlaywrightJobSummary(current, summary));
+        }
+      } catch {
+        // The job summary is published asynchronously by GitHub Pages.
+      }
+    };
+
+    poll();
+    const interval = window.setInterval(poll, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [job.status, job.statusUrl]);
 
   useEffect(() => {
     if (!loaded) {
@@ -1473,8 +1547,104 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
     });
   }
 
+  async function submitPlaywrightJob() {
+    const endpoint = playwrightJobsEndpoint(data);
+    const normalizedTicketKey = ticketKey.trim().toUpperCase();
+    const requestedAt = new Date().toISOString();
+    const selectedIssue = data?.issues?.find((issue) => issue.key === normalizedTicketKey);
+
+    if (!/^[A-Z][A-Z0-9]+-\d+$/.test(normalizedTicketKey)) {
+      setJob({
+        status: "failed",
+        message: "Enter a Jira ticket key before starting automation.",
+        requestedAt
+      });
+      return;
+    }
+
+    if (!endpoint) {
+      setJob({
+        status: "failed",
+        message: "No Cloudflare Playwright bridge is configured for this board.",
+        requestedAt
+      });
+      return;
+    }
+
+    setJob({
+      status: "submitting",
+      message: "Submitting the approved Playwright job to the protected runner...",
+      requestedAt,
+      currentStep: "Validating request"
+    });
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=UTF-8" },
+        credentials: "include",
+        body: JSON.stringify({
+          schemaVersion: "playwright-job/v1",
+          scriptId,
+          ticketKey: normalizedTicketKey,
+          release: data?.version || "v3001.123.0",
+          environment,
+          requestedBy: {
+            displayName: "Dashboard user"
+          },
+          repositorySlug: data?.repositorySlug || "DewanKabir009/jira-board-v3001-123-0",
+          dashboardUrl: data?.dashboardUrl || (typeof window === "undefined" ? "" : window.location.href),
+          parameters: {
+            ticketUrl: selectedIssue?.url || jiraTicketUrl(data, data?.issues || [], normalizedTicketKey),
+            dashboardUrl: data?.dashboardUrl ? `${data.dashboardUrl.replace(/\/$/, "")}/modern/` : (typeof window === "undefined" ? "" : window.location.href),
+            startUrl: "https://golfnowcentral.dev.golfnow.io/"
+          },
+          artifactPlan: {
+            screenshots: true,
+            video: true,
+            trace: true,
+            logs: true
+          },
+          jiraCommentMode: "draft"
+        })
+      });
+      const payload = await response.json().catch(() => ({
+        ok: false,
+        message: "The Playwright bridge returned an unreadable response."
+      }));
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || payload?.error || "The Playwright bridge rejected the job.");
+      }
+
+      setJob({
+        status: "queued",
+        message: payload.message || "Playwright job queued. Evidence will appear when the runner publishes the job record.",
+        requestedAt,
+        jobId: payload.jobId,
+        actionsUrl: payload.actionsUrl,
+        statusUrl: payload.statusUrl,
+        jobUrl: payload.jobUrl,
+        currentStep: "Queued in GitHub Actions",
+        artifacts: []
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Playwright job could not be started.";
+      setJob({
+        status: "failed",
+        message: isHostedBridgeEndpoint(data?.assigneeDispatchEndpoint || "") && /failed to fetch|unreadable|network|load failed/i.test(errorMessage)
+          ? "Cloudflare login is required. Open the bridge link, then retry."
+          : errorMessage,
+        requestedAt,
+        actionsUrl: data?.repositorySlug ? workflowUrl(data.repositorySlug, "run-playwright-job.yml") : ""
+      });
+      console.error(error);
+    }
+  }
+
   const completeCount = PLAYWRIGHT_SPEC_ITEMS.filter((item) => completed.has(item.id)).length;
   const progress = Math.round((completeCount / PLAYWRIGHT_SPEC_ITEMS.length) * 100);
+  const jobTone = job.status === "failed" ? "danger" : job.status === "completed" ? "good" : job.status === "idle" ? "neutral" : "attention";
 
   return (
     <section className="automation-playbook" aria-labelledby="automation-playbook-heading">
@@ -1554,7 +1724,7 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
         <div className="automation-runbook">
           <div className="automation-section-heading">
             <h3>Execution playbook</h3>
-            <span>Draft</span>
+            <span>Ready</span>
           </div>
           <ol>
             {PLAYWRIGHT_PLAYBOOK_STEPS.map((step) => <li key={step}>{step}</li>)}
@@ -1564,6 +1734,55 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
             <p>
               A user can start an approved Playwright job from this board, watch live evidence, and open final artifacts without terminal access.
             </p>
+          </div>
+        </div>
+      </div>
+      <div className="automation-job-console">
+        <div className="automation-section-heading">
+          <h3>Run approved automation</h3>
+          <span>{job.status}</span>
+        </div>
+        <div className="automation-job-form">
+          <SelectFilter
+            label="Script"
+            value={scriptId}
+            options={PLAYWRIGHT_SCRIPT_OPTIONS}
+            onChange={setScriptId}
+            includeAll={false}
+            preferredDirection="up"
+          />
+          <SelectFilter
+            label="Environment"
+            value={environment}
+            options={PLAYWRIGHT_ENVIRONMENT_OPTIONS}
+            onChange={setEnvironment}
+            includeAll={false}
+            preferredDirection="up"
+          />
+          <label className="automation-ticket-input">
+            <span>Ticket</span>
+            <input value={ticketKey} onChange={(event) => setTicketKey(event.target.value.toUpperCase())} placeholder="CORE-14474" />
+          </label>
+          <button type="button" onClick={submitPlaywrightJob} disabled={!data || job.status === "submitting"}>
+            {job.status === "submitting" ? "Starting..." : "Run Playwright"}
+          </button>
+        </div>
+        <div className={`automation-job-status ${jobTone}`} role="status" aria-live="polite">
+          <div>
+            <strong>{job.jobId ? `Job ${job.jobId}` : "No active job"}</strong>
+            <p>{job.message}</p>
+            {job.currentStep ? <small>Current step: {job.currentStep}</small> : null}
+            {job.failureReason ? <small>Failure: {job.failureReason}</small> : null}
+          </div>
+          <div className="automation-job-links">
+            {job.actionsUrl ? <a href={job.actionsUrl} target="_blank" rel="noreferrer">Actions run</a> : null}
+            {job.statusUrl ? <a href={job.statusUrl} target="_blank" rel="noreferrer">Summary JSON</a> : null}
+            {job.jobUrl ? <a href={job.jobUrl} target="_blank" rel="noreferrer">Evidence page</a> : null}
+            {(job.artifacts || []).map((artifact) => artifact.href ? (
+              <a href={artifact.href} target="_blank" rel="noreferrer" key={`${artifact.type}-${artifact.href}`}>
+                {artifact.label || artifact.type || "Artifact"}
+              </a>
+            ) : null)}
           </div>
         </div>
       </div>
@@ -3128,6 +3347,17 @@ function bridgeRefreshEndpoint(data: DashboardData | null) {
   return base.toString();
 }
 
+function playwrightJobsEndpoint(data: DashboardData | null) {
+  const base = bridgeApiBase(data);
+  if (!base) {
+    return "";
+  }
+
+  base.pathname = "/playwright/jobs";
+  base.search = "";
+  return base.toString();
+}
+
 function bridgeApiBase(data: DashboardData | null) {
   const endpoint = data?.assigneeDispatchEndpoint || "";
   if (!endpoint) {
@@ -3145,6 +3375,33 @@ function jiraSiteUrlFromIssues(issues: Issue[]) {
   const url = issues.find((issue) => issue.url)?.url || "";
   const match = url.match(/^(https?:\/\/[^/]+)/i);
   return match?.[1] || "";
+}
+
+function mergePlaywrightJobSummary(current: PlaywrightJobRequestState, summary: Record<string, any>): PlaywrightJobRequestState {
+  const status = String(summary.status || current.status || "queued").toLowerCase();
+  const normalizedStatus = status === "completed" || status === "failed" || status === "running" || status === "queued"
+    ? status
+    : current.status;
+  const artifacts = Array.isArray(summary.artifacts)
+    ? summary.artifacts.map((artifact) => ({
+      label: String(artifact.label || artifact.type || "Artifact"),
+      type: String(artifact.type || ""),
+      href: String(artifact.href || "")
+    })).filter((artifact) => artifact.href)
+    : current.artifacts;
+
+  return {
+    ...current,
+    status: normalizedStatus,
+    message: String(summary.message || summary.summary || current.message || "Playwright job updated."),
+    currentStep: String(summary.currentStep || summary.step || current.currentStep || ""),
+    jobId: String(summary.jobId || current.jobId || ""),
+    statusUrl: String(summary.statusUrl || current.statusUrl || ""),
+    jobUrl: String(summary.jobUrl || current.jobUrl || ""),
+    actionsUrl: String(summary.actionsUrl || current.actionsUrl || ""),
+    failureReason: String(summary.failureReason || summary.error || current.failureReason || ""),
+    artifacts
+  };
 }
 
 function uniqueStrings(values: string[]) {

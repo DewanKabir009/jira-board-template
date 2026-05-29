@@ -208,9 +208,15 @@ Generated data that does not belong in this template:
 - Rollout readiness and fallback plan for keeping the current board available during modern preview migration
 - Cutover readiness validation for assignee writes, checklist comments, Slack delivery, and final signoff evidence
 - Custom compact dropdown controls with Jira assignee avatar support in the modern preview
-- 123-only Playwright automation playbook with runner contract, job schema, and approved script registry links
+- 123-only Playwright automation playbook with runner contract, job schema, approved script registry links, and dashboard job queue controls
 
 ## Version History
+
+### v1.10.20
+
+- Completed the 123-board Playwright automation spec set from PW-01 through PW-06.
+- Added the dashboard-side Run Playwright console and job summary polling hooks.
+- Documented the protected runner, evidence publishing, and production gates for the 123 pilot.
 
 ### v1.10.19
 

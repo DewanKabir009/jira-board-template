@@ -1,6 +1,6 @@
 # Playwright Automation Runner
 
-SPEC-PW status: started for the 123 board only.
+SPEC-PW status: complete for the 123 board pilot.
 
 ## Goal
 
@@ -12,15 +12,19 @@ The dashboard remains a command surface. A protected hosted runner owns executio
 
 - Pilot board: `v3001.123.0`
 - Hosted spec path: `/playwright-specs/`
-- First spec: `PW-01 Runner contract`
+- Runner workflow: `run-playwright-job.yml`
+- Evidence path: `/playwright-jobs/<jobId>/`
 
-## PW-01 Deliverables
+## Completed Deliverables
 
 - Job request schema.
 - Approved script registry.
 - Runner endpoint contract.
 - Artifact contract.
 - Failure and audit behavior.
+- Dashboard job queue control.
+- Summary polling and artifact links.
+- Protected runner workflow and script skeleton.
 
 ## Runner Contract
 
@@ -33,6 +37,7 @@ The dashboard submits a small JSON request:
   "ticketKey": "CORE-14474",
   "release": "v3001.123.0",
   "environment": "dev",
+  "repositorySlug": "DewanKabir009/jira-board-v3001-123-0",
   "requestedBy": {
     "displayName": "Dewan Kabir"
   },
@@ -81,6 +86,6 @@ Every job record should expose:
 - Per-script timeout and rate limit.
 - Durable audit log for every requested job.
 
-## Next Spec
+## Production Gate
 
-`PW-02` will create the protected hosted runner skeleton and storage model.
+This pilot remains limited to the `v3001.123.0` board. Additional boards should not receive the run console until the approved script registry, Cloudflare Access users, rate limits, and evidence retention rules are reviewed for that board.

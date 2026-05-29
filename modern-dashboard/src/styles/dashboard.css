@@ -984,6 +984,128 @@ h3 {
   padding-top: 12px;
 }
 
+.automation-job-console {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(0, 95, 204, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  padding: 14px;
+}
+
+.automation-job-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(160px, 0.55fr) minmax(170px, 0.55fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.automation-ticket-input {
+  display: grid;
+  gap: 7px;
+}
+
+.automation-ticket-input span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.automation-ticket-input input {
+  min-height: 42px;
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--text);
+  font: inherit;
+  font-weight: 760;
+  padding: 0 12px;
+}
+
+.automation-job-form > button {
+  min-height: 42px;
+  border: 1px solid var(--blue);
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--blue), var(--green));
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 950;
+  padding: 0 14px;
+  box-shadow: 0 12px 26px rgba(0, 95, 204, 0.18);
+}
+
+.automation-job-form > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.automation-job-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ffffff, rgba(240, 249, 255, 0.82));
+  padding: 12px;
+}
+
+.automation-job-status.good {
+  border-color: rgba(0, 143, 90, 0.34);
+  background: linear-gradient(135deg, rgba(216, 255, 232, 0.82), #ffffff);
+}
+
+.automation-job-status.attention {
+  border-color: rgba(245, 130, 32, 0.34);
+  background: linear-gradient(135deg, rgba(255, 237, 213, 0.74), #ffffff);
+}
+
+.automation-job-status.danger {
+  border-color: rgba(190, 18, 60, 0.32);
+  background: linear-gradient(135deg, rgba(255, 228, 230, 0.74), #ffffff);
+}
+
+.automation-job-status strong {
+  color: var(--text);
+}
+
+.automation-job-status p,
+.automation-job-status small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.automation-job-status small {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.automation-job-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.automation-job-links a {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--blue);
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 0 10px;
+  text-decoration: none;
+}
+
 .migration-rollout-details {
   opacity: 0.9;
 }
@@ -4155,6 +4277,15 @@ h3 {
 
   .automation-architecture {
     grid-template-columns: 1fr;
+  }
+
+  .automation-job-form,
+  .automation-job-status {
+    grid-template-columns: 1fr;
+  }
+
+  .automation-job-links {
+    justify-content: flex-start;
   }
 
   .ticket-card-meta,
