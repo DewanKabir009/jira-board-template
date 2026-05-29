@@ -352,6 +352,12 @@ type PlaywrightJobRequestState = {
   failureLog?: string;
 };
 
+type PlaywrightArtifact = {
+  label?: string;
+  type?: string;
+  href?: string;
+};
+
 type TicketSearchStatus = {
   message: string;
   tone: HealthTone;
@@ -1474,6 +1480,7 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
   });
   const [completionNotice, setCompletionNotice] = useState("");
   const [failureNotice, setFailureNotice] = useState("");
+  const [artifactPreview, setArtifactPreview] = useState<PlaywrightArtifact | null>(null);
   const notifiedPlaywrightJobId = useRef("");
   const notifiedPlaywrightFailureId = useRef("");
 
@@ -1855,6 +1862,7 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
             {(job.artifacts || []).map((artifact) => {
               const primaryArtifactReady = resultsReady && /screenshot|video/i.test(`${artifact.type || ""} ${artifact.label || ""}`);
               const failureArtifact = failedJob && /log|event/i.test(`${artifact.type || ""} ${artifact.label || ""}`);
+              const previewableArtifact = isPreviewablePlaywrightArtifact(artifact);
               return artifact.href ? (
               <a
                 className={primaryArtifactReady ? "result-artifact ready" : failureArtifact ? "result-artifact failed" : "result-artifact"}
@@ -1862,6 +1870,13 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
                 target="_blank"
                 rel="noreferrer"
                 key={`${artifact.type}-${artifact.href}`}
+                onClick={(event) => {
+                  if (!previewableArtifact) {
+                    return;
+                  }
+                  event.preventDefault();
+                  setArtifactPreview(artifact);
+                }}
               >
                 {artifact.label || artifact.type || "Artifact"}
               </a>
@@ -1870,7 +1885,49 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
           </div>
         </div>
       </div>
+      {artifactPreview ? <PlaywrightArtifactPreviewModal artifact={artifactPreview} onClose={() => setArtifactPreview(null)} /> : null}
     </section>
+  );
+}
+
+function PlaywrightArtifactPreviewModal({ artifact, onClose }: { artifact: PlaywrightArtifact; onClose: () => void }) {
+  const titleId = useId();
+  const href = artifact.href || "";
+  const title = artifact.label || artifact.type || "Result";
+  const kind = playwrightArtifactKind(artifact);
+
+  useEffect(() => {
+    document.body.classList.add("modal-open");
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.classList.remove("modal-open");
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div className="ticket-detail-modal result-preview-modal" role="presentation">
+      <button className="ticket-detail-backdrop" type="button" aria-label="Close result viewer" onClick={onClose}></button>
+      <section className="result-preview-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+        <header className="result-preview-modal-header">
+          <strong id={titleId}>{title}</strong>
+          <div className="result-preview-modal-actions">
+            <a className="button-link" href={href} target="_blank" rel="noreferrer">Open full page</a>
+            <button className="ticket-detail-close" type="button" onClick={onClose} aria-label="Close result viewer">X</button>
+          </div>
+        </header>
+        <div className="result-preview-modal-body">
+          {kind === "image" ? <img src={href} alt={title} /> : null}
+          {kind === "video" ? <video src={href} controls playsInline /> : null}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -3509,6 +3566,21 @@ function clientPlaywrightJobId(ticketKey: string) {
 
 function playwrightJobArtifactUrl(jobId: string, fileName: string) {
   return `../playwright-jobs/${encodeURIComponent(jobId)}/${fileName}`;
+}
+
+function playwrightArtifactKind(artifact: PlaywrightArtifact) {
+  const value = `${artifact.type || ""} ${artifact.label || ""} ${artifact.href || ""}`.toLowerCase();
+  if (/screenshot|image|\.png|\.jpe?g|\.gif|\.webp/.test(value)) {
+    return "image";
+  }
+  if (/video|\.webm|\.mp4|\.mov/.test(value)) {
+    return "video";
+  }
+  return "";
+}
+
+function isPreviewablePlaywrightArtifact(artifact: PlaywrightArtifact) {
+  return Boolean(artifact.href && playwrightArtifactKind(artifact));
 }
 
 function uniqueStrings(values: string[]) {
