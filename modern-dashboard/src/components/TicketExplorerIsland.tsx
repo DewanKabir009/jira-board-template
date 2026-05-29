@@ -349,6 +349,7 @@ type PlaywrightJobRequestState = {
   currentStep?: string;
   artifacts?: Array<{ label?: string; type?: string; href?: string }>;
   failureReason?: string;
+  failureLog?: string;
 };
 
 type TicketSearchStatus = {
@@ -1472,7 +1473,9 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
     message: "Ready to queue an approved Playwright job."
   });
   const [completionNotice, setCompletionNotice] = useState("");
+  const [failureNotice, setFailureNotice] = useState("");
   const notifiedPlaywrightJobId = useRef("");
+  const notifiedPlaywrightFailureId = useRef("");
 
   useEffect(() => {
     try {
@@ -1522,7 +1525,7 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
     };
 
     poll();
-    const interval = window.setInterval(poll, 15000);
+    const interval = window.setInterval(poll, 5000);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
@@ -1542,6 +1545,27 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
       new window.Notification("Playwright automation complete", { body: message });
     }
   }, [job.jobId, job.status]);
+
+  useEffect(() => {
+    if (job.status !== "failed") {
+      return;
+    }
+
+    const failureKey = job.jobId || `${job.requestedAt || ""}:${job.message}`;
+    if (!failureKey || notifiedPlaywrightFailureId.current === failureKey) {
+      return;
+    }
+
+    notifiedPlaywrightFailureId.current = failureKey;
+    const detail = job.failureReason || job.message || "Open the Actions run for the runner error.";
+    const message = `Playwright automation failed: ${detail}`;
+    setFailureNotice(message);
+    setCompletionNotice("");
+
+    if (typeof window !== "undefined" && "Notification" in window && window.Notification.permission === "granted") {
+      new window.Notification("Playwright automation failed", { body: detail.slice(0, 180) });
+    }
+  }, [job.failureReason, job.jobId, job.message, job.requestedAt, job.status]);
 
   useEffect(() => {
     if (!loaded) {
@@ -1577,6 +1601,7 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
     const normalizedTicketKey = ticketKey.trim().toUpperCase();
     const requestedAt = new Date().toISOString();
     const selectedIssue = data?.issues?.find((issue) => issue.key === normalizedTicketKey);
+    const requestedJobId = clientPlaywrightJobId(normalizedTicketKey);
 
     if (!/^[A-Z][A-Z0-9]+-\d+$/.test(normalizedTicketKey)) {
       setJob({
@@ -1603,6 +1628,7 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
       currentStep: "Validating request"
     });
     setCompletionNotice("");
+    setFailureNotice("");
 
     try {
       const response = await fetch(endpoint, {
@@ -1611,6 +1637,7 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
         credentials: "include",
         body: JSON.stringify({
           schemaVersion: "playwright-job/v1",
+          jobId: requestedJobId,
           scriptId,
           ticketKey: normalizedTicketKey,
           release: data?.version || "v3001.123.0",
@@ -1647,10 +1674,10 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
         status: "queued",
         message: payload.message || "Playwright job queued. Evidence will appear when the runner publishes the job record.",
         requestedAt,
-        jobId: payload.jobId,
+        jobId: payload.jobId || requestedJobId,
         actionsUrl: payload.actionsUrl,
-        statusUrl: payload.statusUrl,
-        jobUrl: payload.jobUrl,
+        statusUrl: payload.statusUrl || playwrightJobArtifactUrl(requestedJobId, "summary.json"),
+        jobUrl: payload.jobUrl || playwrightJobArtifactUrl(requestedJobId, ""),
         currentStep: "Queued in GitHub Actions",
         artifacts: []
       });
@@ -1672,6 +1699,8 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
   const progress = Math.round((completeCount / PLAYWRIGHT_SPEC_ITEMS.length) * 100);
   const jobTone = job.status === "failed" ? "danger" : job.status === "completed" ? "good" : job.status === "idle" ? "neutral" : "attention";
   const resultsReady = job.status === "completed" && Boolean(job.jobUrl || job.artifacts?.length);
+  const failedJob = job.status === "failed";
+  const failureDetail = job.failureReason || job.message || "Open the Actions run for the runner error.";
 
   return (
     <section className="automation-playbook" aria-labelledby="automation-playbook-heading">
@@ -1805,6 +1834,13 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
             <span>{completionNotice || "Playwright automation completed. Open View Results, Screenshot, or Video."}</span>
           </div>
         ) : null}
+        {failedJob ? (
+          <div className="automation-results-failed" role="alert" aria-live="assertive">
+            <strong>Automation failed</strong>
+            <span>{failureNotice || failureDetail}</span>
+            {job.failureLog ? <pre>{job.failureLog}</pre> : null}
+          </div>
+        ) : null}
         <div className={`automation-job-status ${jobTone}`} role="status" aria-live="polite">
           <div>
             <strong>{job.jobId ? `Job ${job.jobId}` : "No active job"}</strong>
@@ -1818,9 +1854,10 @@ function PlaywrightAutomationPlaybook({ data }: { data: DashboardData | null }) 
             {job.jobUrl ? <a className={resultsReady ? "view-results ready" : "view-results"} href={job.jobUrl} target="_blank" rel="noreferrer">View Results</a> : null}
             {(job.artifacts || []).map((artifact) => {
               const primaryArtifactReady = resultsReady && /screenshot|video/i.test(`${artifact.type || ""} ${artifact.label || ""}`);
+              const failureArtifact = failedJob && /log|event/i.test(`${artifact.type || ""} ${artifact.label || ""}`);
               return artifact.href ? (
               <a
-                className={primaryArtifactReady ? "result-artifact ready" : "result-artifact"}
+                className={primaryArtifactReady ? "result-artifact ready" : failureArtifact ? "result-artifact failed" : "result-artifact"}
                 href={artifact.href}
                 target="_blank"
                 rel="noreferrer"
@@ -3447,8 +3484,31 @@ function mergePlaywrightJobSummary(current: PlaywrightJobRequestState, summary: 
     jobUrl: String(summary.jobUrl || current.jobUrl || ""),
     actionsUrl: String(summary.actionsUrl || current.actionsUrl || ""),
     failureReason: String(summary.failureReason || summary.error || current.failureReason || ""),
+    failureLog: playwrightFailureLog(summary, current.failureLog),
     artifacts
   };
+}
+
+function playwrightFailureLog(summary: Record<string, any>, currentLog?: string) {
+  const value = summary.failureLog || summary.logExcerpt || summary.logTail || summary.logs || currentLog || "";
+  const text = Array.isArray(value) ? value.join("\n") : String(value || "");
+  return text.trim().slice(0, 2400);
+}
+
+function clientPlaywrightJobId(ticketKey: string) {
+  const suffix = typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID().slice(0, 8)
+    : Math.random().toString(16).slice(2, 10);
+  return `${ticketKey}-${Date.now().toString(36)}-${suffix}`
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120);
+}
+
+function playwrightJobArtifactUrl(jobId: string, fileName: string) {
+  return `../playwright-jobs/${encodeURIComponent(jobId)}/${fileName}`;
 }
 
 function uniqueStrings(values: string[]) {
