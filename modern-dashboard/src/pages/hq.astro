@@ -89,14 +89,14 @@ const automationScripts = [
 const statusCards = [
   { label: "Jira data pull", value: "Healthy", detail: "5 minute single-shot refresh", tone: "green" },
   { label: "Automation runner", value: "Ready", detail: "Approved scripts only", tone: "blue" },
-  { label: "Assignee bridge", value: "Protected", detail: "Cloudflare Access gated", tone: "amber" },
+  { label: "Cloudflare host", value: "Auth needed", detail: "Dry run passed; deploy token required", tone: "amber" },
   { label: "AI summary", value: "Planned", detail: "Worker endpoint required", tone: "violet" }
 ];
 
 const hqSpecs = [
   { id: "SPEC-HQ-00", title: "Product shell", status: "Implemented", detail: "HQ navigation, workbench layout, module cards." },
   { id: "SPEC-HQ-01", title: "Board registry", status: "Implemented", detail: ".122, .123, .124 board slots and preview panel." },
-  { id: "SPEC-HQ-02", title: "Cloudflare hosting", status: "Planned", detail: "Worker Static Assets deployment and custom route." },
+  { id: "SPEC-HQ-02", title: "Cloudflare hosting", status: "In progress", detail: "Static Assets config validated; deploy waits on Cloudflare auth." },
   { id: "SPEC-HQ-03", title: "Auth and permissions", status: "Planned", detail: "Cloudflare Access plus in-app RBAC." },
   { id: "SPEC-HQ-04", title: "Knowledge base", status: "Planned", detail: "External links, previews, ownership, freshness." },
   { id: "SPEC-HQ-05", title: "Automation bench", status: "Planned", detail: "Playwright and Python API script registry." },
@@ -311,11 +311,11 @@ const hqSpecs = [
             <p class="eyebrow">Spec-driven delivery</p>
             <h2>HQ build checklist</h2>
           </div>
-          <span class="module-pill">2 started</span>
+          <span class="module-pill">2 complete / 1 active</span>
         </div>
         <div class="spec-grid">
           {hqSpecs.map((spec) => (
-            <article class={spec.status === "Implemented" ? "spec-card done" : "spec-card"}>
+            <article class={spec.status === "Implemented" ? "spec-card done" : spec.status === "In progress" ? "spec-card active" : "spec-card"}>
               <span>{spec.id}</span>
               <strong>{spec.title}</strong>
               <em>{spec.status}</em>

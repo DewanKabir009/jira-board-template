@@ -1,6 +1,6 @@
 # CORE QA Headquarters
 
-Status: started.
+Status: started. SPEC-HQ-02 is in progress.
 
 ## Purpose
 
@@ -17,13 +17,13 @@ CORE QA Headquarters turns the standalone release dashboard into a broader proje
 
 ## Delivery Model
 
-The first implementation is a static Astro route at `/hq/` so it can live beside the current dashboard without disrupting `/modern/`. Later specs move hosting and dynamic APIs to Cloudflare Workers with Static Assets.
+The first implementation is a static Astro route at `/hq/` so it can live beside the current dashboard without disrupting `/modern/`. SPEC-HQ-02 adds a dedicated Cloudflare Workers Static Assets deployment path for the 123 pilot while keeping GitHub Pages as the fallback during rollout.
 
 ## Specs
 
 - SPEC-HQ-00: Product shell.
 - SPEC-HQ-01: Board registry.
-- SPEC-HQ-02: Cloudflare hosting.
+- SPEC-HQ-02: Cloudflare hosting. In progress.
 - SPEC-HQ-03: Auth and permissions.
 - SPEC-HQ-04: Knowledge base.
 - SPEC-HQ-05: Automation bench.
