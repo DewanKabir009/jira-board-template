@@ -1,6 +1,6 @@
 # GolfNow CORE Jira Board Template
 
-Central template repo for creating one GitHub Pages Jira dashboard per CORE fixVersion.
+Central template repo for creating one Jira dashboard per CORE fixVersion, with GitHub Pages fallback and Cloudflare Worker hosting for the modern board and HQ shell.
 
 This repo owns the shared dashboard code: Jira pulls, HTML generation, GitHub Actions refreshes, Slack/email notification hooks, assignee updates, checklist comment posting, and the Cloudflare Worker bridge source. Release-board repos should contain generated release data; this repo should not.
 
@@ -12,6 +12,7 @@ This repo owns the shared dashboard code: Jira pulls, HTML generation, GitHub Ac
 - Checklist comment workflow for posting QA checklist results back to Jira
 - Slack and email notification script hooks
 - Cloudflare Worker bridge source for hosted assignee/checklist dispatch
+- Cloudflare Worker Static Assets deploy workflow for the modern board and HQ shell
 - Cloudflare Cron refresh monitor that verifies board pull freshness and dispatches recovery runs
 - Local bridge fallback scripts for development
 - Astro migration shell under `modern-dashboard/` for the future static UI
@@ -62,10 +63,18 @@ Optional notification secrets:
 Cloudflare Worker setup for Jira write actions:
 
 - Add the new board repo to `ALLOWED_REPOSITORIES`.
-- Keep `ALLOWED_ORIGINS` set to the GitHub Pages owner origin, for example `https://dewankabir009.github.io`.
+- Keep `ALLOWED_ORIGINS` set to the GitHub Pages owner origin and the Cloudflare Worker origin pattern, for example `https://dewankabir009.github.io,https://*.dfkabir253.workers.dev`.
 - Set `DEFAULT_REPOSITORY` only if the bridge should have a default board.
 - Set `BOARD_DISPATCH_TOKEN` as a Worker secret with GitHub Actions dispatch permission for the release-board repos.
 - If Cloudflare Access protects the Worker, configure `ALLOWED_USER_EMAILS`, `ACCESS_AUD`, `ACCESS_JWKS_URL`, and `ACCESS_ISSUER`.
+
+Cloudflare board/HQ hosting setup for generated release boards:
+
+- Copy `wrangler.hq.toml.example` to `wrangler.hq.toml` inside the generated board repo.
+- Set a release-specific Worker name, `account_id`, `RELEASE_VERSION`, `GITHUB_PAGES_FALLBACK_URL`, `CLOUDFLARE_BOARD_URL`, and `CLOUDFLARE_HQ_URL`.
+- Add `CLOUDFLARE_API_TOKEN` to the generated board repo secrets.
+- Let `scripts/prepare-cloudflare-hq-assets.cjs` copy `modern/` plus `dashboard-data.json` into `.cloudflare-hq-assets`.
+- Run the `Deploy Cloudflare Board and HQ` workflow. The Worker root hosts the modern board and `/hq/` hosts the HQ page.
 
 ## Cloudflare Provisioner
 
@@ -134,6 +143,12 @@ Generated board URL pattern:
 
 ```text
 https://dewankabir009.github.io/jira-board-v3001-124-0/
+```
+
+Cloudflare board URL pattern after the generated repo has `wrangler.hq.toml` configured:
+
+```text
+https://core-qa-headquarters-124.dfkabir253.workers.dev/
 ```
 
 ## Modern Dashboard Shell
@@ -209,6 +224,7 @@ Generated data that does not belong in this template:
 - Cutover readiness validation for assignee writes, checklist comments, Slack delivery, and final signoff evidence
 - Custom compact dropdown controls with Jira assignee avatar support in the modern preview
 - 123-only Playwright automation playbook with runner contract, job schema, approved script registry links, and dashboard job queue controls
+- Cloudflare Worker Static Assets hosting for current and upcoming modern boards
 
 ## Version History
 
@@ -217,6 +233,12 @@ Generated data that does not belong in this template:
 - Completed the 123-board Playwright automation spec set from PW-01 through PW-06.
 - Added the dashboard-side Run Playwright console and job summary polling hooks.
 - Documented the protected runner, evidence publishing, and production gates for the 123 pilot.
+
+### v1.10.21
+
+- Added Cloudflare board and HQ deploy workflow support for future release boards.
+- Added the Cloudflare asset preparation script to package `modern/` and `dashboard-data.json` for Worker Static Assets.
+- Updated the hosted bridge to allow Cloudflare Worker board origins and show a human landing page in browsers while preserving JSON status checks.
 
 ### v1.10.19
 

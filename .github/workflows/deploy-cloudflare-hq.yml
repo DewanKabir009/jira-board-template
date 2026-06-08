@@ -1,0 +1,40 @@
+name: Deploy Cloudflare Board and HQ
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy static board and HQ assets
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Verify Cloudflare deploy configuration
+        run: |
+          set -euo pipefail
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Set CLOUDFLARE_API_TOKEN in repository secrets before running this workflow."
+            exit 1
+          fi
+          if [ ! -f wrangler.hq.toml ]; then
+            echo "::error::Create a release-specific wrangler.hq.toml from wrangler.hq.toml.example before deploying."
+            exit 1
+          fi
+
+      - name: Prepare Cloudflare board and HQ assets
+        run: node scripts/prepare-cloudflare-hq-assets.cjs
+
+      - name: Deploy board and HQ Worker Static Assets
+        run: npx -y wrangler deploy -c wrangler.hq.toml

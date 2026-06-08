@@ -1,13 +1,16 @@
-name = "core-qa-headquarters"
-# Set this in generated board repos so Wrangler does not need to infer the account.
-# account_id = "replace-with-cloudflare-account-id"
+name = "core-qa-headquarters-release"
+account_id = "replace-with-cloudflare-account-id"
 compatibility_date = "2026-06-03"
 workers_dev = true
 
 [assets]
-directory = "./modern-dashboard/dist"
+directory = "./.cloudflare-hq-assets"
+binding = "ASSETS"
 not_found_handling = "404-page"
 
 [vars]
 HQ_ENVIRONMENT = "template"
-GITHUB_PAGES_FALLBACK_URL = "https://dewankabir009.github.io/jira-board-v3001-123-0/modern/"
+RELEASE_VERSION = "v3001.replace-me.0"
+GITHUB_PAGES_FALLBACK_URL = "https://dewankabir009.github.io/jira-board-v3001-replace-me/modern/"
+CLOUDFLARE_BOARD_URL = "https://replace-with-worker-name.dfkabir253.workers.dev/"
+CLOUDFLARE_HQ_URL = "https://replace-with-worker-name.dfkabir253.workers.dev/hq/"
