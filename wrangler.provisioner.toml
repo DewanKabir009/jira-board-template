@@ -24,6 +24,7 @@ BOARD_REGISTRY_URL = "https://raw.githubusercontent.com/DewanKabir009/jira-board
 REFRESH_MONITOR_STALE_MINUTES = "20"
 REFRESH_MONITOR_CRITICAL_MINUTES = "40"
 REFRESH_MONITOR_PUBLISHING_GRACE_MINUTES = "10"
+REFRESH_MONITOR_SLACK_CHANNEL = "core-qa-dream-team-hq-notifications"
 
 # Optional if you put this Worker behind Cloudflare Access for /provision.
 # PROVISIONER_ADMIN_EMAILS = "qa.lead@example.com"
